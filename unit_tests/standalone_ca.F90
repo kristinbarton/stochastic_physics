@@ -1,5 +1,6 @@
 program  standalone_ca_global
 
+use mpi_f08
 use cellular_automata_global_mod, only : cellular_automata_global
 use cellular_automata_sgs_mod, only : cellular_automata_sgs
 use update_ca, only : write_ca_restart,read_ca_restart
@@ -18,13 +19,14 @@ implicit none
 integer                 :: ntasks,fid,ct,levs,ntiles
 integer                 :: ncid_in,varid,ncid,xt_dim_id,yt_dim_id,time_dim_id,xt_var_id,yt_var_id,time_var_id,ca_out_id
 integer                 :: ca1_id,ca2_id,ca3_id,ca_deep_id!,ca_turb_id,ca_shal_id
-integer                 :: root_pe,comm,dump_time
+integer                 :: root_pe,dump_time
+type(MPI_Comm)          :: comm
 real(kind=kind_phys)    :: dtf, nthresh
 character*4             :: strid
 character*1             :: tileid
 character*4             :: CRES
 !type(GFS_statein_type),allocatable :: Statein(:)
-include 'mpif.h'
+!include 'mpif.h'
 include 'netcdf.inc'
 real(kind=4) :: ts,undef
 
@@ -65,11 +67,12 @@ real(kind=kind_phys), dimension(:,:),   allocatable :: ca_deep, ca_turb, ca_shal
 
 real(kind=kind_phys), dimension(:,:),   allocatable :: ca1, ca2, ca3
 
-NAMELIST /gfs_physics_nml/ do_ca, ca_sgs, ca_global, nca, ncells, nlives, nseed,       &
+namelist /gfs_physics_nml/ do_ca, ca_sgs, ca_global, nca, ncells, nlives, nseed,       &
                           nfracseed, rcell, ca_trigger, ca_entr, ca_closure, nca_g,    &
                           ncells_g, nlives_g, nseed_g, ca_smooth, nspinup, iseed_ca,   &
                           nsmooth, ca_amplitude, warm_start
 ! get mpi info,
+
 
 first_time_step=.true.
 warm_start=.false.
@@ -219,33 +222,33 @@ if (ca_global) then
    ierr=NF90_PUT_ATT(ncid,ca3_id,"cell_methods","time: point")
    print*,'nc18',ierr
 endif
-if (ca_sgs) then
-   ierr=NF90_DEF_VAR(ncid,"ca_deep",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_deep_id)
-   print*,'ca_deep',ierr
-   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"long_name","CA field for deep convection")
-   print*,'nc18',ierr
-   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"units","None")
-   print*,'nc19',ierr
-   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"missing_value",undef)
-   print*,'nc20',ierr
-   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"_FillValue",undef)
-   print*,'nc21',ierr
-   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"cell_methods","time: point")
-   print*,'nc22',ierr
-   !ierr=NF90_DEF_VAR(ncid,"ca_turb",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_turb_id)
-   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"long_name","CA field for PBL")
-   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"long_name","random pattern")
-   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"units","None")
-   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"missing_value",undef)
-   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"_FillValue",undef)
-   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"cell_methods","time: point")
-   !ierr=NF90_DEF_VAR(ncid,"ca_shal",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_shal_id)
-   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"long_name","CA field for shallow convection")
-   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"units","None")
-   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"missing_value",undef)
-   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"_FillValue",undef)
-   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"cell_methods","time: point")
-endif
+!if (ca_sgs) then
+!   ierr=NF90_DEF_VAR(ncid,"ca_deep",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_deep_id)
+!   print*,'ca_deep',ierr
+!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"long_name","CA field for deep convection")
+!   print*,'nc18',ierr
+!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"units","None")
+!   print*,'nc19',ierr
+!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"missing_value",undef)
+!   print*,'nc20',ierr
+!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"_FillValue",undef)
+!   print*,'nc21',ierr
+!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"cell_methods","time: point")
+!   print*,'nc22',ierr
+!   !ierr=NF90_DEF_VAR(ncid,"ca_turb",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_turb_id)
+!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"long_name","CA field for PBL")
+!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"long_name","random pattern")
+!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"units","None")
+!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"missing_value",undef)
+!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"_FillValue",undef)
+!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"cell_methods","time: point")
+!   !ierr=NF90_DEF_VAR(ncid,"ca_shal",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_shal_id)
+!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"long_name","CA field for shallow convection")
+!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"units","None")
+!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"missing_value",undef)
+!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"_FillValue",undef)
+!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"cell_methods","time: point")
+!endif
 ierr=NF90_ENDDEF(ncid)
    print*,'nc23',ierr
 ierr=NF90_PUT_VAR(ncid,xt_var_id,grid_xt)
@@ -268,6 +271,10 @@ if(ca_sgs)then
    allocate(sst         (nblks,blksz))
    allocate(lmsk        (nblks,blksz))
    allocate(lake        (nblks,blksz))
+!   allocate(uwind       (nblks,blksz, levs))
+!   allocate(vwind       (nblks,blksz, levs))
+!   allocate(height      (nblks,blksz, levs))
+!   allocate(dx          (nblks,blksz))
    sst(:,:)=303.
    lmsk(:,:)=0.
    lake(:,:)=0
@@ -276,17 +283,17 @@ if(ca_sgs)then
    ierr=NF90_OPEN('INPUT/C'//trim(adjustl(CRES))//'_ca_condition.tile'//tileid//'.nc',NF90_NOWRITE,ncid_in)
    if (ierr.NE.0) then
        print*,'error INPUT/C'//trim(adjustl(CRES))//'_ca_condition.tile'//tileid//'.nc'
-       call MPI_ABORT(ierr)
+!       call MPI_ABORT(ierr)
    endif
    ierr=NF90_INQ_VARID(ncid_in,'ca_condition',varid)
    if (ierr.NE.0) then
        print*,'error gettinv varid for ca_condition'
-       call MPI_ABORT(ierr)
+!       call MPI_ABORT(ierr)
    endif
    ierr=NF90_GET_VAR(ncid_in,varid,cond_in,start=(/isc,jsc,1/),count=(/nx,ny,1/))
    if (ierr.NE.0) then
        print*,'error getting var',isc,jsc,nx,ny
-       call MPI_ABORT(ierr)
+!       call MPI_ABORT(ierr)
    endif
    ierr=NF90_CLOSE(ncid_in)
    
@@ -316,21 +323,21 @@ endif
 dump_time=50
 if (warm_start) then
    istart=dump_time+1
-   call read_ca_restart(Atm(1)%domain,ncells,nca,ncells_g,nca_g)
+   call read_ca_restart(Atm(1)%domain,0,ncells,nca,ncells_g,nca_g)
 else
    istart=1
 endif
 ct=1
 do i=istart,101
    ts=i/4.0  ! hard coded to write out hourly based on a 900 second time-step
-   if (ca_sgs) then
-       call cellular_automata_sgs(i,dtf,warm_start,first_time_step,                            &
-            sst,lmsk,lake,condition,ca_deep,ca_turb,ca_shal, &
-            Atm(1)%domain_for_coupler,nblks,                                          &
-            isc,iec,jsc,jec,Atm(1)%npx,Atm(1)%npy, levs,                                           &
-            nthresh,Atm(1)%tile_of_mosaic,nca,ncells,nlives,nfracseed,                       & ! for new random number
-            nseed,iseed_ca ,nspinup,ca_trigger,blksz,root_pe,comm)
-   endif
+!   if (ca_sgs) then
+!       call cellular_automata_sgs( i, dtf, warm_start, first_time_step,                            & 
+!            sst, lmsk, lake, condition, ca_deep, ca_turb, ca_shal, &
+!            Atm(1)%domain_for_coupler, nblks,                                          &
+!            isc, iec, jsc, jec, Atm(1)%npx, Atm(1)%npy, levs,                                           &
+!            nthresh, Atm(1)%tile_of_mosaic, nca, ncells, nlives, nfracseed,                       & ! for new random number
+!            nseed, iseed_ca , nspinup, ca_trigger, blksz, root_pe, comm)
+!   endif
    if (ca_global) then
       call cellular_automata_global(i,warm_start,first_time_step,ca1,ca2,ca3,Atm(1)%domain_for_coupler, &
            nblks,isc,iec,jsc,jec,Atm(1)%npx,Atm(1)%npy,levs,      &

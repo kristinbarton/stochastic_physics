@@ -1,0 +1,72 @@
+#!/bin/sh
+compile_all=1
+#DEBUG=YES
+DEBUG=NO
+
+module use /scratch4/BMC/ufs-artic/Kristin.Barton/repos/kristinbarton/ufs-arctic-workflow/main/ufs-weather-model/modulefiles/
+module load ufs_ursa.intel.lua
+rm standalone_ca.x
+
+FC=mpif90
+
+INCS="-I."
+INCS="${INCS} -I${fms_ROOT}/include_r8 -L${fms_ROOT}/lib"
+INCS="${INCS} -I${esmf_ROOT}/include -L${esmf_ROOT}/lib"
+INCS="${INCS} -I${netcdf_fortran_ROOT}/include -L${netcdf_fortran_ROOT}/lib"
+INCS="${INCS} -I${netcdf_c_ROOT}/include -L${netcdf_c_ROOT}/lib"
+INCS="${INCS} -I${hdf5_ROOT}/include -L${hdf5_ROOT}/lib"
+INCS="${INCS} -I${parallelio_ROOT}/include -L${parallelio_ROOT}/lib"
+
+if [ $DEBUG == 'YES' ]; then
+   #FLAGS=" -g -C -traceback -real-size 64 -qopenmp -c "$INCS
+   FLAGS=" -O0 -g -check all -link_mpi=dbg_mt -traceback -real-size 64 -qopenmp -c "$INCS
+else
+   FLAGS=" -traceback -real-size 64 -qopenmp -c "$INCS
+fi
+#FLAGS2=" -O0 -g -check all -link_mpi=dbg_mt -traceback -real-size 64 -qopenmp -c "$INCS
+FLAGS2=" -traceback -real-size 64 -qopenmp -c "$INCS
+cd ..
+
+if [ $compile_all -eq 1 ];then
+   rm -f *.i90 *.i *.o *.mod lib*a
+   $FC ${FLAGS} kinddef.F90
+   $FC ${FLAGS} mpi_wrapper.F90
+   $FC ${FLAGS2} unit_tests/fv_arrays_stub.F90
+   $FC ${FLAGS2} unit_tests/fv_mp_stub_mod.F90
+   $FC ${FLAGS2} unit_tests/fv_control_stub.F90
+   $FC ${FLAGS2} unit_tests/atmosphere_stub.F90
+   $FC ${FLAGS2} random_numbers.F90
+   $FC ${FLAGS} halo_exchange.fv3.F90
+   $FC ${FLAGS} plumes.F90 
+   $FC ${FLAGS} update_ca.F90
+   $FC ${FLAGS} cellular_automata_sgs.F90
+   $FC ${FLAGS} cellular_automata_global.F90
+   ar rv libcellular_automata.a *.o
+fi
+#if [ $DEBUG == 'YES' ]; then
+#   $FC -traceback -g -C -real-size 64 -qopenmp -o unit_tests/standalone_ca.x unit_tests/standalone_ca.F90 ${INCS} -I${NETCDF}/include -L. -lcellular_automata -L${FMS_LIB} -lfms_r8 -L${ESMF_LIB} -Wl,-rpath,${ESMF_LIB} -lesmf -L${NETCDF}/lib -lnetcdff -lnetcdf -L${HDF5_LIBRARIES} -lhdf5_hl -lhdf5 \
+#-L${ZLIB_LIBRARIES} -lz
+#else
+#   $FC -traceback -real-size 64 -qopenmp -o unit_tests/standalone_ca.x unit_tests/standalone_ca.F90 ${INCS} -I${NETCDF}/include -L. -lcellular_automata -L${FMS_LIB} -lfms_r8 -L${ESMF_LIB} -Wl,-rpath,${ESMF_LIB} -lesmf -L${NETCDF}/lib -lnetcdff -lnetcdf -L${HDF5_LIBRARIES} -lhdf5_hl -lhdf5 \
+#-L${ZLIB_LIBRARIES} -lz
+#fi
+
+if [ $DEBUG == 'YES' ]; then
+   $FC -traceback -g -C -real-size 64 -qopenmp -o unit_tests/standalone_ca.x unit_tests/standalone_ca.F90 \
+   ${INCS} -L. -lcellular_automata \
+   -L${fms_ROOT}/lib -lfms_r8 \
+   -L${esmf_ROOT}/lib -Wl,-rpath,${esmf_ROOT}/lib -lesmf \
+   -L${parallelio_ROOT}/lib -lpiof -lpioc \
+   -L${netcdf_fortran_ROOT}/lib -lnetcdff \
+   -L${netcdf_c_ROOT}/lib -lnetcdf \
+   -L${hdf5_ROOT}/lib -lhdf5_hl -lhdf5 -lz
+else
+   $FC -traceback -real-size 64 -qopenmp -o unit_tests/standalone_ca.x unit_tests/standalone_ca.F90 \
+   ${INCS} -L. -lcellular_automata \
+   -L${fms_ROOT}/lib -lfms_r8 \
+   -L${esmf_ROOT}/lib -Wl,-rpath,${esmf_ROOT}/lib -lesmf \
+   -L${parallelio_ROOT}/lib -lpiof -lpioc \
+   -L${netcdf_fortran_ROOT}/lib -lnetcdff \
+   -L${netcdf_c_ROOT}/lib -lnetcdf \
+   -L${hdf5_ROOT}/lib -lhdf5_hl -lhdf5 -lz
+fi

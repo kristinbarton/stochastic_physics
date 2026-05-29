@@ -1,0 +1,15 @@
+*.o
+*.mod
+*.nc
+*.a
+*.x
+
+unit_tests/INPUT
+unit_tests/RESTART
+unit_tests/err
+unit_tests/out
+unit_tests/option_*
+unit_tests/input.nml
+unit_tests/logfile.*.out
+unit_tests/warnfile.*.out
+unit_tests/stdout_option_*

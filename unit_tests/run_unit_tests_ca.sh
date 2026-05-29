@@ -1,16 +1,16 @@
 #!/bin/sh
 #SBATCH -e err
 #SBATCH -o out
-#SBATCH --account=gsienkf
+#SBATCH --account=ufs-artic
 #SBATCH --qos=debug
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=40
 #SBATCH --time=20
-#SBATCH --job-name="stoch_unit_tests"
+#SBATCH --job-name="standalone_ca_unit_tests"
 RES=96
 NPX=`expr $RES + 1`
 NPY=`expr $RES + 1`
-DO_CA_SGS=.true.
+DO_CA_SGS=.false.
 DO_CA_GLOBAL=.true.
 
 source ./module-setup.sh
@@ -18,8 +18,9 @@ module purge
 module use $( pwd -P )
 module load modules.stoch
 EXEC=standalone_ca.x
+
 # compile codes
-sh compile_standalone_ca.hera.intel
+sh compile_standalone_ca.ursa.intel
 if [ ! -f $EXEC ];then
   echo "compilation errors"
   exit 1
