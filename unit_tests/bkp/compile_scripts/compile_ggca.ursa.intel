@@ -1,0 +1,60 @@
+#!/bin/sh
+
+FC=mpiifx
+DEBUG=YES
+
+# Should work with UFS modulefiles
+module purge
+module use /scratch4/BMC/ufs-artic/Kristin.Barton/repos/kristinbarton/ufs-arctic-workflow/main/ufs-weather-model/modulefiles/
+module load ufs_ursa.intelllvm.lua
+
+# Must compile from top level directory
+cd ..
+
+INCS=""
+LIBS=""
+
+INCS="${INCS} -I${fms_ROOT}/include_r8"
+LIBS="${LIBS} -L${fms_ROOT}/lib -lfms_r8"
+
+INCS="${INCS} -I${esmf_ROOT}/include"
+LIBS="${LIBS} -L${esmf_ROOT}/lib -Wl,-rpath,${esmf_ROOT}/lib -lesmf"
+
+INCS="${INCS} -I${netcdf_fortran_ROOT}/include"
+LIBS="${LIBS} -L${netcdf_fortran_ROOT}/lib -lnetcdff"
+
+INCS="${INCS} -I${netcdf_c_ROOT}/include"
+LIBS="${LIBS} -L${netcdf_c_ROOT}/lib -lnetcdf"
+
+INCS="${INCS} -I${hdf5_ROOT}/include"
+LIBS="${LIBS} -L${hdf5_ROOT}/lib -lhdf5_hl -lhdf5 -lz"
+
+INCS="${INCS} -I${parallelio_ROOT}/include"
+LIBS="${LIBS} -L${parallelio_ROOT}/lib -lpiof -lpioc"
+
+if [ $DEBUG == 'YES' ]; then
+    FLAGS=" -O0 -g -check all -link_mpi=dbg_mt -traceback -real-size 64 -qopenmp -c "$INCS
+    DBGFLG="-g -C"
+else
+    FLAGS="-traceback -real-size 64 -qopenmp -c "$INCS
+    DBGFLG=""
+fi
+FLAGS2=" -traceback -real-size 64 -qopenmp -c "$INCS
+
+rm -f *.i90 *.i *.o *.mod lib*a
+$FC ${FLAGS} kinddef.F90
+$FC ${FLAGS} mpi_wrapper.F90
+$FC ${FLAGS2} unit_tests/fv_arrays_stub.F90
+$FC ${FLAGS2} unit_tests/fv_mp_stub_mod.F90
+$FC ${FLAGS2} unit_tests/fv_control_stub.F90
+$FC ${FLAGS2} unit_tests/atmosphere_stub.F90
+$FC ${FLAGS2} random_numbers.F90
+$FC ${FLAGS} halo_exchange.fv3.F90
+$FC ${FLAGS} plumes.F90 
+$FC ${FLAGS} update_ca.F90
+$FC ${FLAGS} cellular_automata_sgs.F90
+$FC ${FLAGS} cellular_automata_global.F90
+ar rv libcellular_automata.a *.o
+
+$FC -traceback $DBGFLG -real-size 64 -qopenmp -o unit_tests/standalone_ca.x unit_tests/standalone_ca.F90 \
+    -I. ${INCS} -L. -lcellular_automata ${LIBS}

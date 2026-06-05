@@ -1,0 +1,16 @@
+Run a test with:
+sbatch run_ggca.sh
+
+Manually compile code with:
+source env_ursa_intelllvm.sh
+make ggca
+
+Make options:
+ca: original standalone cellular automata
+ggca: gaussian grid standalone cellular automata
+DEBUG=YES: use debug mode (defualt is NO)
+
+Compiled code is placed in build/
+
+Clean build/ directory with:
+make clean

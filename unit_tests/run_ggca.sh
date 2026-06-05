@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #SBATCH -e err
 #SBATCH -o out
 #SBATCH --account=ufs-artic
@@ -11,16 +11,12 @@
 # This is for compiling and testing the standalone version
 # of the Gaussian Grid Cellular Automata code
 
-# Should be compatible with UFS module files
-module purge
-module use /scratch4/BMC/ufs-artic/Kristin.Barton/repos/kristinbarton/ufs-arctic-workflow/main/ufs-weather-model/modulefiles/
-module load ufs_ursa.intel.lua
-
 # Compile the standalone_ca.x code
 EXEC=standalone_ca.x
-if [ ! -f "$EXEC" ]; then
-    sh compile_standalone_ca.ursa.intel
-    if [ ! -f "$EXEC" ]; then
+if [ ! -f "build/$EXEC" ]; then
+    source ./env_ursa_intelllvm.sh
+    make ca
+    if [ ! -f "build/$EXEC" ]; then
         echo "ERROR COMPILING $EXEC"
         exit 1
     fi
@@ -50,7 +46,7 @@ if [ ! -L "INPUT/$GRIDSPEC" ]; then
 fi
 
 # Populate namelist template
-cp ../input.nml.ca_template input.nml
+cp ../templates/input.nml.ca_template input.nml
 sed -i -e "s/LOX/1/g" input.nml
 sed -i -e "s/LOY/1/g" input.nml
 sed -i -e "s/NPX/$NPX/g" input.nml
@@ -61,6 +57,6 @@ sed -i -e "s/CA_GLOBAL/.true./g" input.nml
 sed -i -e "s/WARM_START/.false./g" input.nml
 
 # Run executable
-ln -s ../$EXEC .
+ln -s ../build/$EXEC .
 export OMP_NUM_THREADS=1
 time srun --label -n 6 $EXEC >& ggca.stdout
