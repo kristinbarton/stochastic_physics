@@ -7,31 +7,57 @@
 #SBATCH --ntasks-per-node=40
 #SBATCH --time=20
 #SBATCH --job-name="standalone_ca_unit_tests"
+
 RES=96
 NPX=`expr $RES + 1`
 NPY=`expr $RES + 1`
 DO_CA_SGS=.false.
 DO_CA_GLOBAL=.true.
 
-source ./module-setup.sh
-module purge
-module use $( pwd -P )
-module load modules.stoch
+RESDIR="RESTART"
+if [ ! -d "$RESDIR" ]; then
+    mkdir -p "$RESDIR"
+fi
+
+INDIR="INPUT"
+if [ ! -d "$INDIR" ]; then
+    mkdir -p "$INDIR"
+fi
+
+INFILE="ca_data.tile1.nc"
+if [ ! -f "$INDIR/$INFILE" ]; then
+    conda_env="/scratch4/BMC/ufs-artic/Kristin.Barton/envs/ufs-arctic"
+    module load rdhpcs-conda
+    conda activate ${conda_env}
+    python gen_restart_files.py
+    conda deactivate
+
+    if [ ! -f "$INDIR/$INFILE" ]; then
+        echo "ERROR GENERATING $INDIR/$INFILE"
+        exit 1
+    fi
+fi
+
+GRIDSPEC="C${RES}_grid_spec.nc"
+MOSAICDIR="/scratch4/BMC/ufs-artic/Kristin.Barton/repos/ufs-community/UFS_UTILS/build/fix/orog/C${RES}/"
+if [ ! -d "$MOSAICDIR" ]; then
+    echo "DOES NOT EXIST: $MOSAIC"
+    exit 1
+fi
+if [ ! -L "$INDIR/$GRIDSPEC" ]; then
+    ln -s "$MOSAICDIR"/* "$INDIR"/.
+    ln -s "$MOSAICDIR"/C${RES}_mosaic.nc "$INDIR/$GRIDSPEC"
+fi
+
 EXEC=standalone_ca.x
 
-# compile codes
-sh compile_standalone_ca.ursa.intel
-if [ ! -f $EXEC ];then
-  echo "compilation errors"
-  exit 1
+if [ ! -f "$EXEC" ]; then
+    sh compile_standalone_ca.ursa.intel
+    if [ ! -f "$EXEC" ]; then
+        echo "ERROR COMPILING $EXEC"
+        exit 1
+    fi
 fi
-#sh compile_compare_ca.sh
-
-# copy input directory
-if [ ! -d INPUT ]; then
-   cp -r /scratch2/BMC/gsienkf/Philip.Pegion/stochastic_physics_unit_tests/input_data INPUT
-fi
-mkdir -p RESTART
 
    #layout 1x1
    cp input.nml.ca_template input.nml
