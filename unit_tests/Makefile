@@ -49,7 +49,8 @@ GGCA_SRCS = kinddef.F90 \
 		    plumes.F90 \
 		    update_ca.F90 \
             cellular_automata_sgs.F90 \
-		    cellular_automata_global.F90
+		    cellular_automata_global.F90 \
+		    cellular_automata_global_gg.F90
 
 GGCA_OBJS = $(addprefix $(BUILD_DIR)/, $(GGCA_SRCS:.F90=.o))
 

@@ -48,25 +48,20 @@
 
 &gfs_physics_nml
   do_ca          = .true.
-  ca_sgs         = CA_SGS 
-  ca_global      = CA_GLOBAL
-  nca            = 1
-  ncells         = 5
-  nlives         = 12
-  nseed          = 100
+  ca_sgs         = false
+  ca_global      = true
   nfracseed      = 0.5
   rcell          = 0.72
-  ca_trigger     = .True.
+  ca_trigger     = .false.
   ca_entr        = .False.
   ca_closure     = .False.
-  nca_g          = 3
+  nca_g          = 1
   ncells_g       = 1
-  nlives_g       = 100
-  nseed_g        = 100
-  ca_smooth      = .true.
-  nspinup        = 100
+  nlives_g       = 30
+  nseed_g        = 1
+  ca_smooth      = .false.
+  nspinup        = 1000
   iseed_ca       = 22345
-  nsmooth        = 100
+  nsmooth        = 1
   ca_amplitude   = 0.35
-  warm_start     = WARM_START
 /

@@ -1,9 +1,10 @@
-Run a test with:
+Run a test with (this will compile AND run):
 sbatch run_ggca.sh
 
 Manually compile code with:
 source env_ursa_intelllvm.sh
-make ggca
+make ca     # Original CA standalone
+make ggca   # Gaussian grid CA standalone
 
 Make options:
 ca: original standalone cellular automata

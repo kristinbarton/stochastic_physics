@@ -11,11 +11,11 @@
 # This is for compiling and testing the standalone version
 # of the Gaussian Grid Cellular Automata code
 
-# Compile the standalone_ca.x code
-EXEC=standalone_ca.x
+# Compile the standalone_ggca.x code
+EXEC=standalone_ggca.x
 if [ ! -f "build/$EXEC" ]; then
     source ./env_ursa_intelllvm.sh
-    make ca
+    make ggca
     if [ ! -f "build/$EXEC" ]; then
         echo "ERROR COMPILING $EXEC"
         exit 1
@@ -52,9 +52,6 @@ sed -i -e "s/LOY/1/g" input.nml
 sed -i -e "s/NPX/$NPX/g" input.nml
 sed -i -e "s/NPY/$NPY/g" input.nml
 sed -i -e "s/RES/$RES/g" input.nml
-sed -i -e "s/CA_SGS/.false./g" input.nml
-sed -i -e "s/CA_GLOBAL/.true./g" input.nml
-sed -i -e "s/WARM_START/.false./g" input.nml
 
 # Run executable
 ln -s ../build/$EXEC .

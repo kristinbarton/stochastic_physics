@@ -2,6 +2,7 @@ program  standalone_ca_global
 
 use mpi_f08
 use cellular_automata_global_mod, only : cellular_automata_global
+use cellular_automata_global_gg_mod, only : cellular_automata_global_gg
 use cellular_automata_sgs_mod, only : cellular_automata_sgs
 use update_ca, only : write_ca_restart,read_ca_restart
 use atmosphere_stub_mod, only: Atm,atmosphere_init_stub
@@ -339,7 +340,7 @@ do i=istart,101
 !            nseed, iseed_ca , nspinup, ca_trigger, blksz, root_pe, comm)
 !   endif
    if (ca_global) then
-      call cellular_automata_global(i,warm_start,first_time_step,ca1,ca2,ca3,Atm(1)%domain_for_coupler, &
+      call cellular_automata_global_gg(i,warm_start,first_time_step,ca1,ca2,ca3,Atm(1)%domain_for_coupler, &
            nblks,isc,iec,jsc,jec,Atm(1)%npx,Atm(1)%npy,levs,      &
            nca_g,ncells_g,nlives_g,nfracseed,nseed_g,                         &
            iseed_ca,Atm(1)%tile_of_mosaic, ca_smooth,nspinup,blksz,    &
