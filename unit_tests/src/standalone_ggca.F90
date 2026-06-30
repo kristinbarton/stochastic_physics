@@ -1,9 +1,7 @@
-program  standalone_ca_global
+program  standalone_ggca
 
 use mpi_f08
-use cellular_automata_global_mod, only : cellular_automata_global
-use cellular_automata_global_gg_mod, only : cellular_automata_global_gg
-use cellular_automata_sgs_mod, only : cellular_automata_sgs
+use cellular_automata_gg_mod, only : cellular_automata_gg
 use update_ca, only : write_ca_restart,read_ca_restart
 use atmosphere_stub_mod, only: Atm,atmosphere_init_stub
 !use mpp_domains
@@ -330,55 +328,59 @@ else
 endif
 ct=1
 do i=istart,101
+   print *, "kstep = ",i
    ts=i/4.0  ! hard coded to write out hourly based on a 900 second time-step
-!   if (ca_sgs) then
-!       call cellular_automata_sgs( i, dtf, warm_start, first_time_step,                            & 
-!            sst, lmsk, lake, condition, ca_deep, ca_turb, ca_shal, &
-!            Atm(1)%domain_for_coupler, nblks,                                          &
-!            isc, iec, jsc, jec, Atm(1)%npx, Atm(1)%npy, levs,                                           &
-!            nthresh, Atm(1)%tile_of_mosaic, nca, ncells, nlives, nfracseed,                       & ! for new random number
-!            nseed, iseed_ca , nspinup, ca_trigger, blksz, root_pe, comm)
+   if (ca_global) then
+      call cellular_automata_gg(    &
+                i,                  &
+                warm_start,         &
+                first_time_step,    &
+                ca1,ca2,ca3,        &
+                nca_g,              &
+                ncells_g,           &
+                nlives_g,           &
+                nfracseed,          &
+                nseed_g,            &
+                iseed_ca,           &
+                ca_smooth,          &
+                nspinup,            &
+                nsmooth,            &
+                ca_amplitude        &
+            )
+   endif
+!   if (i.EQ. dump_time) call write_ca_restart('mid_run')
+!   first_time_step=.false.
+!   if (mod(i-1,5).eq.0) then
+!      if (ca_global) then
+!         workg(:,:)=TRANSPOSE(ca1(:,:))
+!         ierr=NF90_PUT_VAR(ncid,ca1_id,workg,(/1,1,ct/))
+!         print*,'put ca 1',ierr
+!         workg(:,:)=TRANSPOSE(ca2(:,:))
+!         ierr=NF90_PUT_VAR(ncid,ca2_id,workg,(/1,1,ct/))
+!         workg(:,:)=TRANSPOSE(ca3(:,:))
+!         ierr=NF90_PUT_VAR(ncid,ca3_id,workg,(/1,1,ct/))
+!      endif
+!      if (ca_sgs) then
+!         workg(:,:)=TRANSPOSE(ca_deep(:,:))
+!         ierr=NF90_PUT_VAR(ncid,ca_deep_id,workg,(/1,1,ct/))
+!         print*,'put ca_deep',ierr
+!         !workg(:,:)=TRANSPOSE(ca_turb(:,:))
+!         !ierr=NF90_PUT_VAR(ncid,ca_turb_id,workg,(/1,1,ct/))
+!         !workg(:,:)=ca_shal(:,:)   
+!         !workg(:,:)=cond_in(:,:)   
+!         !ierr=NF90_PUT_VAR(ncid,ca_shal_id,workg,(/1,1,ct/))
+!      endif
+!      ierr=NF90_PUT_VAR(ncid,time_var_id,ts,(/ct/))
+!      ct=ct+1
 !   endif
-   if (ca_global) then
-      call cellular_automata_global_gg(i,warm_start,first_time_step,ca1,ca2,ca3,Atm(1)%domain_for_coupler, &
-           nblks,isc,iec,jsc,jec,Atm(1)%npx,Atm(1)%npy,levs,      &
-           nca_g,ncells_g,nlives_g,nfracseed,nseed_g,                         &
-           iseed_ca,Atm(1)%tile_of_mosaic, ca_smooth,nspinup,blksz,    &
-           nsmooth,ca_amplitude,root_pe,comm)
-   endif
-   if (i.EQ. dump_time) call write_ca_restart('mid_run')
-   first_time_step=.false.
-   if (mod(i-1,5).eq.0) then
-      if (ca_global) then
-         workg(:,:)=TRANSPOSE(ca1(:,:))
-         ierr=NF90_PUT_VAR(ncid,ca1_id,workg,(/1,1,ct/))
-         print*,'put ca 1',ierr
-         workg(:,:)=TRANSPOSE(ca2(:,:))
-         ierr=NF90_PUT_VAR(ncid,ca2_id,workg,(/1,1,ct/))
-         workg(:,:)=TRANSPOSE(ca3(:,:))
-         ierr=NF90_PUT_VAR(ncid,ca3_id,workg,(/1,1,ct/))
-      endif
-      if (ca_sgs) then
-         workg(:,:)=TRANSPOSE(ca_deep(:,:))
-         ierr=NF90_PUT_VAR(ncid,ca_deep_id,workg,(/1,1,ct/))
-         print*,'put ca_deep',ierr
-         !workg(:,:)=TRANSPOSE(ca_turb(:,:))
-         !ierr=NF90_PUT_VAR(ncid,ca_turb_id,workg,(/1,1,ct/))
-         !workg(:,:)=ca_shal(:,:)   
-         !workg(:,:)=cond_in(:,:)   
-         !ierr=NF90_PUT_VAR(ncid,ca_shal_id,workg,(/1,1,ct/))
-      endif
-      ierr=NF90_PUT_VAR(ncid,time_var_id,ts,(/ct/))
-      ct=ct+1
-   endif
-   if (ca_global) then
-      if (my_id.EQ.0) write(6,fmt='(a,i7,f8.3)') 'ca glob =',i,maxval(ca1)
-   endif
-   if (ca_sgs) then
-      if (my_id.EQ.0) write(6,fmt='(a,i7,f8.3)') 'ca sgs=',i,maxval(ca_deep)
-   endif
+!   if (ca_global) then
+!      if (my_id.EQ.0) write(6,fmt='(a,i7,f8.3)') 'ca glob =',i,maxval(ca1)
+!   endif
+!   if (ca_sgs) then
+!      if (my_id.EQ.0) write(6,fmt='(a,i7,f8.3)') 'ca sgs=',i,maxval(ca_deep)
+!   endif
 enddo
-call write_ca_restart()
-!close(fid)
-ierr=NF90_CLOSE(ncid)
+!call write_ca_restart()
+!!close(fid)
+!ierr=NF90_CLOSE(ncid)
 end

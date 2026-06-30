@@ -40,6 +40,9 @@ ca: $(BUILD_DIR)/libca.a $(BUILD_DIR)/standalone_ca.o
 # ---------------------------------------------------
 GGCA_SRCS = kinddef.F90 \
 		    mpi_wrapper.F90 \
+			stochy_namelist_def.F90 \
+			stochy_internal_state_mod.F90 \
+			spectral_transforms.F90 \
 		    fv_arrays_stub.F90 \
 		    fv_mp_stub_mod.F90 \
             fv_control_stub.F90 \
@@ -48,9 +51,7 @@ GGCA_SRCS = kinddef.F90 \
 		    random_numbers.F90 \
 		    plumes.F90 \
 		    update_ca.F90 \
-            cellular_automata_sgs.F90 \
-		    cellular_automata_global.F90 \
-		    cellular_automata_global_gg.F90
+		    cellular_automata_gg.F90
 
 GGCA_OBJS = $(addprefix $(BUILD_DIR)/, $(GGCA_SRCS:.F90=.o))
 

@@ -3,9 +3,9 @@
 #SBATCH -o out
 #SBATCH --account=ufs-artic
 #SBATCH --qos=debug
-#SBATCH --nodes=2
+#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=40
-#SBATCH --time=20
+#SBATCH --time=10
 #SBATCH --job-name="run_ggca"
 
 # This is for compiling and testing the standalone version
@@ -14,6 +14,7 @@
 # Compile the standalone_ggca.x code
 EXEC=standalone_ggca.x
 if [ ! -f "build/$EXEC" ]; then
+    echo "Compiling $EXEC"
     source ./env_ursa_intelllvm.sh
     make ggca
     if [ ! -f "build/$EXEC" ]; then
@@ -56,4 +57,5 @@ sed -i -e "s/RES/$RES/g" input.nml
 # Run executable
 ln -s ../build/$EXEC .
 export OMP_NUM_THREADS=1
+echo "Running executable"
 time srun --label -n 6 $EXEC >& ggca.stdout

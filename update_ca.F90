@@ -25,6 +25,7 @@ public  write_ca_restart
 public  read_ca_restart
 public  update_cells_sgs
 public  update_cells_global
+public  update_cells_gg
 
 integer,allocatable :: board(:,:,:), lives(:,:,:)
 integer,allocatable :: board_g(:,:,:), lives_g(:,:,:)
@@ -833,6 +834,40 @@ enddo !spinup
   ENDDO
 
 end subroutine update_cells_global
+
+subroutine update_cells_gg(                 &
+        kstep,                              &
+        first_time_step,                    &
+        iseed_ca,                           &
+        restart,                            &
+        nca,                                &
+        nxc, nyc,                           & ! CA grid dimensions
+        CA,                                 & ! Coarse output
+        iini_g,                             & ! Init board state
+        ilives_g,                           & ! Init lives values
+        nf)                                   ! Which CA instance
+
+implicit none
+
+integer, intent(in) :: kstep, nxc, nyc, nca
+integer, intent(in) :: iini_g(nxc,nyc,nca), ilives_g(nxc,nyc)
+integer, intent(in) :: nf
+integer(8), intent(in) :: iseed_ca
+real, intent(out) :: CA(nxc,nyc)
+logical, intent(in) :: first_time_step, restart
+
+! Update cells global does the following:
+! - Allocate board, lives, and board_halo
+! - First time step: board&lives = iini&ilives
+! - Seed cells with new active cells each nseed time-step
+! - Perform spinup (?)
+! - Evolve CA
+! - Coarse-grain back to NWP Grid
+
+print *, "Updating CA"
+CA(:,:) = real(iini_g(:,:,nf))
+
+end subroutine update_cells_gg
 
 !================================
  ! This subroutine is copied from FMS/test_fms/test_mpp_domains.F90
