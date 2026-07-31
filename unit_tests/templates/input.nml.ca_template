@@ -55,7 +55,7 @@
   ca_trigger     = .false.
   ca_entr        = .False.
   ca_closure     = .False.
-  nca_g          = 1
+  nca_g          = 3
   ncells_g       = 1
   nlives_g       = 30
   nseed_g        = 1
