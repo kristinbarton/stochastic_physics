@@ -26,7 +26,6 @@ type :: ggca_grid_t
 end type ggca_grid_t
 
 integer, allocatable, save :: board_g(:,:,:), lives_g(:,:,:)
-integer, allocatable, save :: iini_g(:,:,:), ilives_g(:,:,:)
 type(ggca_grid_t), save    :: ggrid
 real(kind=kind_dbl_prec), allocatable, save :: ca_field(:,:,:)
 
@@ -49,7 +48,6 @@ subroutine cellular_automata_gg(     &
         l_min)
 
 use kinddef,       only: kind_dbl_prec, kind_phys
-!use update_ca,     only: update_cells_gg
 use random_numbers,  only: random_01_CB
 use stochy_internal_state_mod, only: stochy_internal_state
 
@@ -68,43 +66,35 @@ integer, intent(in) :: kstep,ncells,nca,nlives,nseed,nspinup,nsmooth
 integer(kind=kind_dbl_prec), intent(in) :: iseed_ca
 real(kind=kind_phys), intent(in) :: nfracseed,ca_amplitude,l_min
 logical, intent(in) :: ca_smooth,first_time_step, restart
-integer :: i,j,k,nf, my_pe, root_pe
-character(len=32) :: filename
 
-! rng
-integer(8) :: count, count_rate, count_max, count_trunc, iscale=10000000000_8
-integer    :: count4, ct
+integer :: i,j,k,nf, my_pe, root_pe, count4, ct, ntrunc
+integer(8) :: ngrid, count, count_rate, count_max, count_trunc, iscale=10000000000_8
+integer, allocatable :: iini_g(:,:,:), ilives_g(:,:,:)
 real(kind=kind_dbl_prec) :: CAmean, CAstdv, psum, sq_diff
-integer(8) :: ngrid
-
-! For GG initialization
 real(kind=kind_dbl_prec), allocatable :: noise(:,:,:)
-integer                               :: ntrunc
+character(len=32) :: filename
 
 my_pe = mpp_pe()
 root_pe = mpp_root_pe()
 
-
-! Initialize CA
+! Initialize gaussian grid
 if (first_time_step) then
   print *, "Initializing grid"
   call ggca_init(l_min, ggrid)
 
-  if (allocated(ilives_g)) deallocate(ilives_g)
-  if (allocated(iini_g))   deallocate(iini_g)
   if (allocated(ca_field)) deallocate(ca_field)
-  allocate(ilives_g(ggrid%nlon, ggrid%nlat, nca))
-  allocate(iini_g  (ggrid%nlon, ggrid%nlat, nca))
   allocate(ca_field(ggrid%nlon, ggrid%nlat, nca))
 
   print *, "Populating CA field"
   ! Initialize CA
-  ilives_g(:,:,:) = 0
-  iini_g  (:,:,:) = 0
   ca_field(:,:,:) = 0.0
 endif
 
+allocate(ilives_g(ggrid%nlon, ggrid%nlat, nca))
+allocate(iini_g  (ggrid%nlon, ggrid%nlat, nca))
 allocate(noise(ggrid%nlon, ggrid%nlat, nca))
+ilives_g(:,:,:) = 0
+iini_g  (:,:,:) = 0
 noise(:,:,:) = 0.0
 
 do j=1,ggrid%nlat
