@@ -1,84 +1,56 @@
-program  standalone_ggca
+program standalone_ggca
 
-use mpi_f08
-use cellular_automata_gg_mod, only : cellular_automata_gg
-use update_ca, only : write_ca_restart,read_ca_restart
-use atmosphere_stub_mod, only: Atm,atmosphere_init_stub
-!use mpp_domains
-use mpp_mod,             only: mpp_set_current_pelist,mpp_get_current_pelist,mpp_init,mpp_pe,mpp_npes ,mpp_declare_pelist,mpp_root_pe
-use mpp_domains_mod,     only: mpp_broadcast_domain,MPP_DOMAIN_TIME,mpp_domains_init ,mpp_domains_set_stack_size
-use fms_mod,             only:  fms_init
-!use time_manager_mod,    only: time_type
-use xgrid_mod,           only: grid_box_type
 use netcdf
-use kinddef,             only : kind_dbl_prec,kind_phys
-
+use mpi_f08
+use cellular_automata_gg_mod, only : cellular_automata_gg, ggca_grid_t, ggca_write
+use update_ca, only: read_ca_restart
+use atmosphere_stub_mod, only: Atm, atmosphere_init_stub
+use mpp_mod, only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe
+use fms_mod, only: fms_init
+use xgrid_mod, only: grid_box_type
+use spectral_transforms, only: stochy_la2ga
+use kinddef, only: kind_phys, kind_dbl_prec
 
 implicit none
-integer                 :: ntasks,fid,ct,levs,ntiles
-integer                 :: ncid_in,varid,ncid,xt_dim_id,yt_dim_id,time_dim_id,xt_var_id,yt_var_id,time_var_id,ca_out_id
-integer                 :: ca1_id,ca2_id,ca3_id,ca_deep_id!,ca_turb_id,ca_shal_id
-integer                 :: root_pe,dump_time
-type(MPI_Comm)          :: comm
-real(kind=kind_phys)    :: dtf, nthresh
-character*4             :: strid
-character*1             :: tileid
-character*4             :: CRES
-!type(GFS_statein_type),allocatable :: Statein(:)
-!include 'mpif.h'
-include 'netcdf.inc'
-real(kind=4) :: ts,undef
+integer :: ntasks, nblks, blksz, ierr, my_id, root_pe, i, j, nx, ny
+integer :: isc, iec, jsc, jec, nb, npts, i1, i2
+integer :: istart, dump_time, ct
+real(kind=4) :: ts
+logical :: first_time_step
+type(grid_box_type) :: grid_box
+type(ggca_grid_t) :: gaussian_grid
+real(kind=kind_dbl_prec), allocatable :: gaussian_ca(:,:,:)
+real(kind=kind_dbl_prec), allocatable :: fv3_ca(:,:,:)
+real(kind=kind_dbl_prec), allocatable :: fv3_lons(:,:), fv3_lats(:,:)
+character(len=128) :: output_file
+character(len=4) :: strid
 
-integer     :: nblks,blksz,ierr,my_id,i,j,nx,ny,id,i1,i2
-integer     :: isc,iec,jsc,jec,nb,npts
-logical  :: first_time_step
-integer  :: istart
+! Cellular automata controls
+integer :: nca, nlives, ncells
+integer :: nca_g, nlives_g, ncells_g
+real(kind=kind_phys) :: nfracseed, rcell
+integer :: nseed, nseed_g
+logical :: do_ca, ca_sgs, ca_global, ca_smooth
+integer*8 :: iseed_ca
+integer :: nspinup, nsmooth
+real :: ca_amplitude
+real(kind=kind_phys) :: l_min
+logical :: ca_closure, ca_entr, ca_trigger, warm_start
+real(kind=kind_phys), allocatable :: ca1(:,:), ca2(:,:), ca3(:,:)
 
-real(kind=4),allocatable,dimension(:,:) :: workg
-real(kind=4),allocatable,dimension(:) :: grid_xt,grid_yt
-type(grid_box_type)           :: grid_box
-!---cellular automata control parameters
-integer              :: nca             !< number of independent cellular automata
-integer              :: nlives          !< cellular automata lifetime
-integer              :: ncells          !< cellular automata finer grid
-integer              :: nca_g           !< number of independent cellular automata
-integer              :: nlives_g        !< cellular automata lifetime
-integer              :: ncells_g        !< cellular automata finer grid
-real(kind=kind_phys) :: nfracseed       !< cellular automata seed probability
-integer              :: nseed           !< cellular automata seed frequency
-integer              :: nseed_g         !< cellular automata seed frequency
-logical              :: do_ca           !< cellular automata main switch
-logical              :: ca_sgs          !< switch for sgs ca
-logical              :: ca_global       !< switch for global ca
-logical              :: ca_smooth       !< switch for gaussian spatial filter
-integer*8            :: iseed_ca        !< seed for random number generation in ca scheme
-integer              :: nspinup         !< number of iterations to spin up the ca
-real(kind=kind_phys) :: rcell           !< threshold used for CA scheme
-real                 :: ca_amplitude    !< amplitude of ca trigger perturbation
-real                 :: l_min           !< model grid cell length scale in meters
-integer              :: nsmooth         !< number of passes through smoother
-logical              :: ca_closure      !< logical switch for ca on closure
-logical              :: ca_entr         !< logical switch for ca on entrainment
-logical              :: ca_trigger      !< logical switch for ca on trigger
-logical              :: warm_start      !< logical switch for ca on trigger
-
-real(kind=kind_phys), dimension(:,:),   allocatable :: cond_in,condition, sst,lmsk,lake
-real(kind=kind_phys), dimension(:,:),   allocatable :: ca_deep, ca_turb, ca_shal
-
-real(kind=kind_phys), dimension(:,:),   allocatable :: ca1, ca2, ca3
+! Some SGS fields
+real(kind=kind_phys), allocatable :: cond_in(:,:), condition(:,:)
+real(kind=kind_phys), allocatable :: sst(:,:), lmsk(:,:), lake(:,:)
+real(kind=kind_phys), allocatable :: ca_deep(:,:), ca_turb(:,:), ca_shal(:,:)
 
 namelist /gfs_physics_nml/ do_ca, ca_sgs, ca_global, nca, ncells, nlives, nseed,       &
                           nfracseed, rcell, ca_trigger, ca_entr, ca_closure, nca_g,    &
                           ncells_g, nlives_g, nseed_g, ca_smooth, nspinup, iseed_ca,   &
                           nsmooth, ca_amplitude, warm_start
-! get mpi info,
 
-
-first_time_step=.true.
-warm_start=.false.
-dtf=720/12.0
-! default values
-levs=63
+! Defaults
+first_time_step = .true.
+warm_start = .false.
 nca            = 0
 nca_g          = 0
 ncells_g       = 1
@@ -99,8 +71,7 @@ open (unit=565, file='input.nml', status='OLD', iostat=ierr)
 read(565,gfs_physics_nml)
 close(565)
 ! define stuff
-undef=9.99e+20
-print*,'ca_sgs,ca_global',ca_sgs,ca_global
+print *, 'ca_sgs,ca_global',ca_sgs,ca_global
 if (.not. ca_sgs) then
    nca=0
 endif
@@ -109,280 +80,264 @@ if (.not. ca_global) then
 endif
 
 ! initialize fms
-!call fms_init()
 call mpp_init()
 call fms_init
-root_pe=mpp_root_pe()
-comm=MPI_COMM_WORLD
 my_id=mpp_pe()
-ntasks=mpp_npes()
-ntiles=6
+root_pe = mpp_root_pe()
+ntasks = mpp_npes()
 
-call atmosphere_init_stub (grid_box)
+call atmosphere_init_stub(grid_box)
 !define domain
-isc=Atm(1)%bd%isc
-iec=Atm(1)%bd%iec
-jsc=Atm(1)%bd%jsc
-jec=Atm(1)%bd%jec
-write(CRES,'(I4)') Atm(1)%npx-1
-print*,'ATM npx,npy=',Atm(1)%npx,Atm(1)%npy
+isc = Atm(1)%bd%isc
+iec = Atm(1)%bd%iec
+jsc = Atm(1)%bd%jsc
+jec = Atm(1)%bd%jec
+print *, 'ATM npx,npy=', Atm(1)%npx, Atm(1)%npy
 
-nx=iec-isc+1
-ny=jec-jsc+1
-allocate(workg(nx,ny))
-print*,'after init',my_id,Atm(1)%tile_of_mosaic,isc,jec
+nx = iec - isc + 1
+ny = jec - jsc + 1
+print *, 'after init', my_id, Atm(1)%tile_of_mosaic, isc, jec
 
 ! for this simple test, nblocks = ny, blksz=ny
 blksz=nx
 nblks=ny
 
-! setup GFS_init parameters
+! set gaussian grid scale l_min based on fv3 grid size
+l_min = 0.5_kind_phys * (sum(grid_box%dx(isc:iec,jsc:jec)) + sum(grid_box%dy(isc:iec,jsc:jec))) / real(nx*ny, kind=kind_phys) * 5
+print *, 'average FV3 cell size (m) = ', l_min
 
-!define model grid
+if (ca_global) then
+  allocate(ca1 (nblks,blksz))
+  allocate(ca2 (nblks,blksz))
+  allocate(ca3 (nblks,blksz))
+  allocate(fv3_ca(nblks,blksz,max(1,nca_g)))
+  allocate(fv3_lons(nblks,blksz))
+  allocate(fv3_lats(nblks,blksz))
 
-allocate(grid_xt(nx),grid_yt(ny))
-do i=1,nx
-  grid_xt(i)=i
-enddo
-do i=1,ny
-  grid_yt(i)=i
-enddo
-
-!setup GFS_coupling
-if ( ntasks .GT. 1000) then
-   write(strid,'(I4.4)') my_id+1
-else if ( ntasks .GT. 100) then
-   write(strid,'(I3.3)') my_id+1
-else if ( ntasks .GT. 10) then
-   write(strid,'(I2.2)') my_id+1
-else
-   write(strid,'(I1.1)') my_id+1
-endif
-fid=30+my_id
-!ierr=nf90_create('ca_out.tile'//trim(strid)//'.nc',cmode=NF90_CLOBBER,ncid=ncid)
-!ierr=NF90_DEF_DIM(ncid,"grid_xt",nx,xt_dim_id)
-!ierr=NF90_DEF_DIM(ncid,"grid_yt",ny,yt_dim_id)
-!ierr=NF90_DEF_DIM(ncid,"time",NF90_UNLIMITED,time_dim_id)
-!  !> - Define the dimension variables.
-!ierr=NF90_DEF_VAR(ncid,"grid_xt",NF90_FLOAT,(/ xt_dim_id /), xt_var_id)
-!ierr=NF90_PUT_ATT(ncid,xt_var_id,"long_name","T-cell longitude")
-!ierr=NF90_PUT_ATT(ncid,xt_var_id,"cartesian_axis","X")
-!ierr=NF90_PUT_ATT(ncid,xt_var_id,"units","degrees_E")
-!ierr=NF90_DEF_VAR(ncid,"grid_yt",NF90_FLOAT,(/ yt_dim_id /), yt_var_id)
-!ierr=NF90_PUT_ATT(ncid,yt_var_id,"long_name","T-cell latitude")
-!ierr=NF90_PUT_ATT(ncid,yt_var_id,"cartesian_axis","Y")
-!ierr=NF90_PUT_ATT(ncid,yt_var_id,"units","degrees_N")
-!ierr=NF90_DEF_VAR(ncid,"time",NF90_FLOAT,(/ time_dim_id /), time_var_id)
-!ierr=NF90_PUT_ATT(ncid,time_var_id,"long_name","time")
-!ierr=NF90_PUT_ATT(ncid,time_var_id,"units","hours since 2014-08-01 00:00:00")
-!ierr=NF90_PUT_ATT(ncid,time_var_id,"cartesian_axis","T")
-!ierr=NF90_PUT_ATT(ncid,time_var_id,"calendar_type","JULIAN")
-!ierr=NF90_PUT_ATT(ncid,time_var_id,"calendar","JULIAN")
-!ierr=NF90_DEF_VAR(ncid,"ca_out",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_out_id)
-!ierr=NF90_PUT_ATT(ncid,ca_out_id,"long_name","random pattern")
-!ierr=NF90_PUT_ATT(ncid,ca_out_id,"units","None")
-!ierr=NF90_PUT_ATT(ncid,ca_out_id,"missing_value",undef)
-!ierr=NF90_PUT_ATT(ncid,ca_out_id,"_FillValue",undef)
-!ierr=NF90_PUT_ATT(ncid,ca_out_id,"cell_methods","time: point")
-!if (ca_global) then
-!   ierr=NF90_DEF_VAR(ncid,"ca1",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca1_id)
-!   print*,'nc 1',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca1_id,"long_name","random pattern")
-!   print*,'nc 2',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca1_id,"units","None")
-!   print*,'nc 3',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca1_id,"missing_value",undef)
-!   print*,'nc 4',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca1_id,"_FillValue",undef)
-!   print*,'nc 5',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca1_id,"cell_methods","time: point")
-!   print*,'nc 6',ierr
-!   ierr=NF90_DEF_VAR(ncid,"ca2",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca2_id)
-!   print*,'nc 7',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca2_id,"long_name","random pattern")
-!   print*,'nc 8',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca2_id,"units","None")
-!   print*,'nc 9',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca2_id,"missing_value",undef)
-!   print*,'nc10',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca2_id,"_FillValue",undef)
-!   print*,'nc11',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca2_id,"cell_methods","time: point")
-!   print*,'nc12',ierr
-!   ierr=NF90_DEF_VAR(ncid,"ca3",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca3_id)
-!   print*,'nc13',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca3_id,"long_name","random pattern")
-!   print*,'nc14',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca3_id,"units","None")
-!   print*,'nc15',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca3_id,"missing_value",undef)
-!   print*,'nc16',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca3_id,"_FillValue",undef)
-!   print*,'nc17',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca3_id,"cell_methods","time: point")
-!   print*,'nc18',ierr
-!endif
-!if (ca_sgs) then
-!   ierr=NF90_DEF_VAR(ncid,"ca_deep",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_deep_id)
-!   print*,'ca_deep',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"long_name","CA field for deep convection")
-!   print*,'nc18',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"units","None")
-!   print*,'nc19',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"missing_value",undef)
-!   print*,'nc20',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"_FillValue",undef)
-!   print*,'nc21',ierr
-!   ierr=NF90_PUT_ATT(ncid,ca_deep_id,"cell_methods","time: point")
-!   print*,'nc22',ierr
-!   !ierr=NF90_DEF_VAR(ncid,"ca_turb",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_turb_id)
-!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"long_name","CA field for PBL")
-!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"long_name","random pattern")
-!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"units","None")
-!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"missing_value",undef)
-!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"_FillValue",undef)
-!   !ierr=NF90_PUT_ATT(ncid,ca_turb_id,"cell_methods","time: point")
-!   !ierr=NF90_DEF_VAR(ncid,"ca_shal",NF90_FLOAT,(/xt_dim_id, yt_dim_id ,time_dim_id/), ca_shal_id)
-!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"long_name","CA field for shallow convection")
-!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"units","None")
-!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"missing_value",undef)
-!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"_FillValue",undef)
-!   !ierr=NF90_PUT_ATT(ncid,ca_shal_id,"cell_methods","time: point")
-!endif
-!ierr=NF90_ENDDEF(ncid)
-!   print*,'nc23',ierr
-!ierr=NF90_PUT_VAR(ncid,xt_var_id,grid_xt)
-!   print*,'nc24',ierr
-!ierr=NF90_PUT_VAR(ncid,yt_var_id,grid_yt)
-!   print*,'nc25',ierr
-! allocate diagnostics
-if(ca_global)then
-   allocate(ca1 (nblks,blksz))
-   allocate(ca2 (nblks,blksz))
-   allocate(ca3 (nblks,blksz))
+  do j=jsc,jec
+    do i=isc,iec
+      nb = j-jsc+1
+      fv3_lons(nb,i-isc+1) = Atm(1)%gridstruct%agrid_64(i,j,1) * 180.0_kind_dbl_prec / acos(-1.0_kind_dbl_prec)
+      fv3_lats(nb,i-isc+1) = Atm(1)%gridstruct%agrid_64(i,j,2) * 180.0_kind_dbl_prec / acos(-1.0_kind_dbl_prec)
+    enddo
+  enddo
 endif
 
-if(ca_sgs)then
-   allocate(ca_deep (nblks,blksz))
-   allocate(ca_turb (nblks,blksz))
-   allocate(ca_shal (nblks,blksz))
-   allocate(condition   (nblks,blksz))
-   allocate(cond_in     (isc:iec,jsc:jec))
-   allocate(sst         (nblks,blksz))
-   allocate(lmsk        (nblks,blksz))
-   allocate(lake        (nblks,blksz))
-!   allocate(uwind       (nblks,blksz, levs))
-!   allocate(vwind       (nblks,blksz, levs))
-!   allocate(height      (nblks,blksz, levs))
-!   allocate(dx          (nblks,blksz))
-   sst(:,:)=303.
-   lmsk(:,:)=0.
-   lake(:,:)=0
-! read in condtion
-   write(tileid,'(I1)') Atm(1)%tile_of_mosaic
-!   ierr=NF90_OPEN('INPUT/C'//trim(adjustl(CRES))//'_ca_condition.tile'//tileid//'.nc',NF90_NOWRITE,ncid_in)
-   if (ierr.NE.0) then
-       print*,'error INPUT/C'//trim(adjustl(CRES))//'_ca_condition.tile'//tileid//'.nc'
-!       call MPI_ABORT(ierr)
+if (ca_sgs) then
+  allocate(ca_deep  (nblks,blksz))
+  allocate(ca_turb  (nblks,blksz))
+  allocate(ca_shal  (nblks,blksz))
+  allocate(sst      (nblks,blksz))
+  allocate(lmsk     (nblks,blksz))
+  allocate(lake     (nblks,blksz))
+  allocate(condition(nblks,blksz))
+!  allocate(dx       (nblks,blksz))
+!  allocate(uwind    (nblks,blksz, levs))
+!  allocate(vwind    (nblks,blksz, levs))
+!  allocate(height   (nblks,blksz, levs))
+  allocate(cond_in(isc:iec,jsc:jec))
+  
+  sst (:,:) = 303.
+  lmsk(:,:) = 0.
+  lake(:,:) = 0
+ i1=isc
+ j=jsc
+ do nb=1,nblks
+   i2=i1+blksz-1
+   if (i2 .le. iec) then  
+     condition(nb,1:blksz) = cond_in(i1:i2,j)
+     i1=i1+blksz
+   else
+     npts=iec-i1+1
+     condition(nb,1:npts) = cond_in(i1:iec,j)
+     if (j.LT. jec) then
+       condition(nb,npts+1:blksz) = cond_in(isc:isc+(blksz-npts+1),j+1) 
+     endif
+     i1=npts+1
+     j=j+1
    endif
-!   ierr=NF90_INQ_VARID(ncid_in,'ca_condition',varid)
-   if (ierr.NE.0) then
-       print*,'error gettinv varid for ca_condition'
-!       call MPI_ABORT(ierr)
+   if (i2.EQ.iec) then
+     i1=isc
+     j=j+1
    endif
-!   ierr=NF90_GET_VAR(ncid_in,varid,cond_in,start=(/isc,jsc,1/),count=(/nx,ny,1/))
-   if (ierr.NE.0) then
-       print*,'error getting var',isc,jsc,nx,ny
-!       call MPI_ABORT(ierr)
-   endif
-!   ierr=NF90_CLOSE(ncid_in)
-   
-   i1=isc
-   j=jsc
-   do nb=1,nblks
-       i2=i1+blksz-1
-       if (i2 .le. iec) then  
-          condition(nb,1:blksz) = cond_in(i1:i2,j)
-          i1=i1+blksz
-       else
-          npts=iec-i1+1
-          condition(nb,1:npts) = cond_in(i1:iec,j)
-          if (j.LT. jec) then
-             condition(nb,npts+1:blksz) = cond_in(isc:isc+(blksz-npts+1),j+1) 
-          endif
-          i1=npts+1
-          j=j+1
-       endif
-       if (i2.EQ.iec) then
-          i1=isc
-          j=j+1
-       endif
-   end do
+ end do
 endif
 
 dump_time=50
 if (warm_start) then
-   istart=dump_time+1
-   call read_ca_restart(Atm(1)%domain,0,ncells,nca,ncells_g,nca_g)
+  istart=dump_time+1
+  call read_ca_restart(Atm(1)%domain,0,ncells,nca,ncells_g,nca_g)
 else
-   istart=1
+  istart=1
 endif
-ct=1
-l_min = 1000*1000 ! Grid length scale in meters
-do i=istart,101
-   print *, "kstep = ",i
-   ts=i/4.0 
-   if (ca_global) then
-      call cellular_automata_gg(    &
-                i,                  &
-                warm_start,         &
-                first_time_step,    &
-                nca_g,              &
-                ncells_g,           &
-                nlives_g,           &
-                nfracseed,          &
-                nseed_g,            &
-                iseed_ca,           &
-                ca_smooth,          &
-                nspinup,            &
-                nsmooth,            &
-                ca_amplitude,       &
-                l_min               &
-            )
-   endif
-   first_time_step=.false.
-!   if (i.EQ. dump_time) call write_ca_restart('mid_run')
-!   if (mod(i-1,5).eq.0) then
-!      if (ca_global) then
-!         workg(:,:)=TRANSPOSE(ca1(:,:))
-!         ierr=NF90_PUT_VAR(ncid,ca1_id,workg,(/1,1,ct/))
-!         print*,'put ca 1',ierr
-!         workg(:,:)=TRANSPOSE(ca2(:,:))
-!         ierr=NF90_PUT_VAR(ncid,ca2_id,workg,(/1,1,ct/))
-!         workg(:,:)=TRANSPOSE(ca3(:,:))
-!         ierr=NF90_PUT_VAR(ncid,ca3_id,workg,(/1,1,ct/))
-!      endif
-!      if (ca_sgs) then
-!         workg(:,:)=TRANSPOSE(ca_deep(:,:))
-!         ierr=NF90_PUT_VAR(ncid,ca_deep_id,workg,(/1,1,ct/))
-!         print*,'put ca_deep',ierr
-!         !workg(:,:)=TRANSPOSE(ca_turb(:,:))
-!         !ierr=NF90_PUT_VAR(ncid,ca_turb_id,workg,(/1,1,ct/))
-!         !workg(:,:)=ca_shal(:,:)   
-!         !workg(:,:)=cond_in(:,:)   
-!         !ierr=NF90_PUT_VAR(ncid,ca_shal_id,workg,(/1,1,ct/))
-!      endif
-!      ierr=NF90_PUT_VAR(ncid,time_var_id,ts,(/ct/))
-!      ct=ct+1
-!   endif
-!   if (ca_global) then
-!      if (my_id.EQ.0) write(6,fmt='(a,i7,f8.3)') 'ca glob =',i,maxval(ca1)
-!   endif
-!   if (ca_sgs) then
-!      if (my_id.EQ.0) write(6,fmt='(a,i7,f8.3)') 'ca sgs=',i,maxval(ca_deep)
-!   endif
+ct = 1
+
+do i = istart, 101
+  print *, "kstep = ", i
+  if (ca_global) then
+    call cellular_automata_gg( &
+           i,                  &
+           warm_start,         &
+           first_time_step,    &
+           nca_g,              &
+           ncells_g,           &
+           nlives_g,           &
+           nfracseed,          &
+           nseed_g,            &
+           iseed_ca,           &
+           ca_smooth,          &
+           nspinup,            &
+           nsmooth,            &
+           ca_amplitude,       &
+           l_min,              &
+           gaussian_ca,        &
+           gaussian_grid       &
+         )
+
+    call remap_ca_to_fv3(gaussian_ca, gaussian_grid, fv3_lons, fv3_lats, fv3_ca)
+
+    ca1(:,:) = 0.0_kind_phys
+    ca2(:,:) = 0.0_kind_phys
+    ca3(:,:) = 0.0_kind_phys
+    if (nca_g >= 1) ca1(:,:) = real(fv3_ca(:,:,1), kind=kind_phys)
+    if (nca_g >= 2) ca2(:,:) = real(fv3_ca(:,:,2), kind=kind_phys)
+    if (nca_g >= 3) ca3(:,:) = real(fv3_ca(:,:,3), kind=kind_phys)
+
+    do j=1,nca_g
+      write(output_file, '("ca",I1,"_gaussian.nc")') j
+      call ggca_write(trim(output_file), gaussian_grid, gaussian_ca(:,:,j), i, my_id, root_pe)
+    enddo
+
+    if (ntasks > 1000) then
+      write(strid,'(I4.4)') my_id+1
+    else if (ntasks > 100) then
+      write(strid,'(I3.3)') my_id+1
+    else if (ntasks > 10) then
+      write(strid,'(I2.2)') my_id+1
+    else
+      write(strid,'(I1.1)') my_id+1
+    endif
+    ts = i / 4.0
+    if (mod(i-1,5) == 0) then
+      call fv3ca_write('ca_out.tile'//trim(strid)//'.nc', ca1, ca2, ca3, ts, ct, ierr)
+    endif
+
+  endif
+
+  first_time_step=.false.
+
 enddo
-!call write_ca_restart()
-!!close(fid)
-!ierr=NF90_CLOSE(ncid)
-end
+
+contains
+
+subroutine remap_ca_to_fv3(gaussian_fields, gaussian_grid, target_lons, target_lats, fv3_fields)
+  real(kind=kind_dbl_prec), intent(in) :: gaussian_fields(:,:,:)
+  type(ggca_grid_t), intent(in) :: gaussian_grid
+  real(kind=kind_dbl_prec), intent(in) :: target_lons(:,:), target_lats(:,:)
+  real(kind=kind_dbl_prec), intent(out) :: fv3_fields(:,:,:)
+
+  integer :: block, field_number, nblocks, blocksize
+
+  nblocks = size(target_lons, 1)
+  blocksize = size(target_lons, 2)
+  do field_number=1,size(gaussian_fields, 3)
+    do block=1,nblocks
+      call stochy_la2ga(                                  &
+             gaussian_fields(:,:,field_number),           &
+             gaussian_grid%nlon, gaussian_grid%nlat,      &
+             gaussian_grid%lons, gaussian_grid%lats,      &
+             gaussian_grid%wlon, gaussian_grid%rnlat,     &
+             fv3_fields(block,1:blocksize, field_number), &
+             blocksize,                                   &
+             target_lats(block,:), target_lons(block,:)   &
+           )
+    enddo
+  enddo
+end subroutine remap_ca_to_fv3
+
+subroutine fv3ca_write(filename, ca1, ca2, ca3, time, record, ierr)
+  use netcdf
+  use kinddef, only : kind_phys
+  character(len=*), intent(in) :: filename
+  real(kind=kind_dbl_prec), intent(in) :: ca1(:,:), ca2(:,:), ca3(:,:)
+  real(kind=4), intent(in) :: time
+  integer, intent(inout) :: record
+  integer, intent(out) :: ierr
+
+  integer :: ncid, xdim_id, ydim_id, time_dim_id
+  integer :: xt_var_id, yt_var_id, time_var_id
+  integer :: ca1_id, ca2_id, ca3_id
+  integer :: nx_out, ny_out
+  real(kind=4), allocatable :: grid_xt(:), grid_yt(:), workg(:,:)
+  real(kind=4) :: undef
+  logical :: file_exists
+
+  nx_out = size(ca1, 2)
+  ny_out = size(ca1, 1)
+  undef = 9.99e+20
+  inquire(file=trim(filename), exist=file_exists)
+  allocate(grid_xt(nx_out), grid_yt(ny_out), workg(nx_out, ny_out))
+  grid_xt = [(real(i, kind=kind_phys), i=1,nx_out)]
+  grid_yt = [(real(j, kind=kind_phys), j=1,ny_out)]
+
+  if (record == 1 .or. .not. file_exists) then
+    ierr = nf90_create(filename, NF90_CLOBBER, ncid)
+    ierr = nf90_def_dim(ncid, 'grid_xt', nx_out, xdim_id)
+    ierr = nf90_def_dim(ncid, 'grid_yt', ny_out, ydim_id)
+    ierr = nf90_def_dim(ncid, 'time', NF90_UNLIMITED, time_dim_id)
+    ierr = nf90_def_var(ncid, 'grid_xt', NF90_FLOAT, (/xdim_id/), xt_var_id)
+    ierr = nf90_put_att(ncid, xt_var_id, 'long_name', 'T-cell longitude')
+    ierr = nf90_put_att(ncid, xt_var_id, 'cartesian_axis', 'X')
+    ierr = nf90_put_att(ncid, xt_var_id, 'units', 'degrees_E')
+    ierr = nf90_def_var(ncid, 'grid_yt', NF90_FLOAT, (/ydim_id/), yt_var_id)
+    ierr = nf90_put_att(ncid, yt_var_id, 'long_name', 'T-cell latitude')
+    ierr = nf90_put_att(ncid, yt_var_id, 'cartesian_axis', 'Y')
+    ierr = nf90_put_att(ncid, yt_var_id, 'units', 'degrees_N')
+    ierr = nf90_def_var(ncid, 'time', NF90_FLOAT, (/time_dim_id/), time_var_id)
+    ierr = nf90_put_att(ncid, time_var_id, 'long_name', 'time')
+    ierr = nf90_put_att(ncid, time_var_id, 'units', 'hours since 2014-08-01 00:00:00')
+    ierr = nf90_put_att(ncid, time_var_id, 'cartesian_axis', 'T')
+    ierr = nf90_put_att(ncid, time_var_id, 'calendar_type', 'JULIAN')
+    ierr = nf90_put_att(ncid, time_var_id, 'calendar', 'JULIAN')
+    ierr = nf90_def_var(ncid, 'ca1', NF90_FLOAT, (/xdim_id, ydim_id, time_dim_id/), ca1_id)
+    ierr = nf90_put_att(ncid, ca1_id, 'long_name', 'random pattern')
+    ierr = nf90_put_att(ncid, ca1_id, 'units', 'None')
+    ierr = nf90_put_att(ncid, ca1_id, 'missing_value', undef)
+    ierr = nf90_put_att(ncid, ca1_id, '_FillValue', undef)
+    ierr = nf90_put_att(ncid, ca1_id, 'cell_methods', 'time: point')
+    ierr = nf90_def_var(ncid, 'ca2', NF90_FLOAT, (/xdim_id, ydim_id, time_dim_id/), ca2_id)
+    ierr = nf90_put_att(ncid, ca2_id, 'long_name', 'random pattern')
+    ierr = nf90_put_att(ncid, ca2_id, 'units', 'None')
+    ierr = nf90_put_att(ncid, ca2_id, 'missing_value', undef)
+    ierr = nf90_put_att(ncid, ca2_id, '_FillValue', undef)
+    ierr = nf90_put_att(ncid, ca2_id, 'cell_methods', 'time: point')
+    ierr = nf90_def_var(ncid, 'ca3', NF90_FLOAT, (/xdim_id, ydim_id, time_dim_id/), ca3_id)
+    ierr = nf90_put_att(ncid, ca3_id, 'long_name', 'random pattern')
+    ierr = nf90_put_att(ncid, ca3_id, 'units', 'None')
+    ierr = nf90_put_att(ncid, ca3_id, 'missing_value', undef)
+    ierr = nf90_put_att(ncid, ca3_id, '_FillValue', undef)
+    ierr = nf90_put_att(ncid, ca3_id, 'cell_methods', 'time: point')
+    ierr = nf90_enddef(ncid)
+    ierr = nf90_put_var(ncid, xt_var_id, grid_xt)
+    ierr = nf90_put_var(ncid, yt_var_id, grid_yt)
+  else
+    ierr = nf90_open(filename, NF90_WRITE, ncid)
+    ierr = nf90_inq_varid(ncid, 'time', time_var_id)
+    ierr = nf90_inq_varid(ncid, 'ca1', ca1_id)
+    ierr = nf90_inq_varid(ncid, 'ca2', ca2_id)
+    ierr = nf90_inq_varid(ncid, 'ca3', ca3_id)
+  endif
+
+  ierr = nf90_put_var(ncid, time_var_id, time, start=(/record/))
+  workg = transpose(ca1)
+  ierr = nf90_put_var(ncid, ca1_id, workg, start=(/1,1,record/))
+  workg = transpose(ca2)
+  ierr = nf90_put_var(ncid, ca2_id, workg, start=(/1,1,record/))
+  workg = transpose(ca3)
+  ierr = nf90_put_var(ncid, ca3_id, workg, start=(/1,1,record/))
+  ierr = nf90_close(ncid)
+  record = record + 1
+
+end subroutine fv3ca_write 
+
+end program standalone_ggca

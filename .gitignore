@@ -8,3 +8,5 @@ unit_tests/err
 unit_tests/out
 unit_tests/run_ggca
 unit_tests/build
+unit_tests/data
+unit_tests/run_ca

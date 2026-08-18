@@ -1,8 +1,6 @@
 module cellular_automata_gg_mod
 
-use mpp_mod, only : mpp_pe, mpp_root_pe
 use constants_mod, only : radius
-use spectral_transforms, only : stochy_la2ga
 use kinddef
 use netcdf
 
@@ -45,11 +43,12 @@ subroutine cellular_automata_gg(     &
         nspinup,         &
         nsmooth,         &
         ca_amplitude,    &
-        l_min)
+        l_min,           &
+        ca_field_out,    &
+        grid_out)
 
 use kinddef,       only: kind_dbl_prec, kind_phys
 use random_numbers,  only: random_01_CB
-use stochy_internal_state_mod, only: stochy_internal_state
 
 implicit none
 
@@ -66,16 +65,14 @@ integer, intent(in) :: kstep,ncells,nca,nlives,nseed,nspinup,nsmooth
 integer(kind=kind_dbl_prec), intent(in) :: iseed_ca
 real(kind=kind_phys), intent(in) :: nfracseed,ca_amplitude,l_min
 logical, intent(in) :: ca_smooth,first_time_step, restart
+real(kind=kind_dbl_prec), allocatable, intent(out) :: ca_field_out(:,:,:)
+type(ggca_grid_t), intent(out) :: grid_out
 
-integer :: i,j,k,nf, my_pe, root_pe, count4, ct, ntrunc
+integer :: i,j,k,nf, count4, ct, ntrunc
 integer(8) :: ngrid, count, count_rate, count_max, count_trunc, iscale=10000000000_8
 integer, allocatable :: iini_g(:,:,:), ilives_g(:,:,:)
 real(kind=kind_dbl_prec) :: CAmean, CAstdv, psum, sq_diff
 real(kind=kind_dbl_prec), allocatable :: noise(:,:,:)
-character(len=32) :: filename
-
-my_pe = mpp_pe()
-root_pe = mpp_root_pe()
 
 ! Initialize gaussian grid
 if (first_time_step) then
@@ -142,11 +139,8 @@ do nf=1,nca
   ca_field(:,:,nf) = min(max(ca_field(:,:,nf), 0.0_kind_dbl_prec), 2.0_kind_dbl_prec)
 enddo
 
-print *, "Outputting CA field"
-do nf = 1,nca
-  write(filename, '(A,I0,A)') 'ca',nf,'_field.nc'
-  call ggca_write(trim(filename), ggrid, ca_field(:,:,nf), kstep, my_pe, root_pe)
-enddo
+ca_field_out = ca_field
+grid_out = ggrid
 
 end subroutine cellular_automata_gg
 

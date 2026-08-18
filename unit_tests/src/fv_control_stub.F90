@@ -463,6 +463,11 @@ module fv_control_stub_mod
         
     call read_grid(Atm, grid_file, ndims, nregions, ng)
 
+    call compute_grid_metrics(Atm, Atm%gridstruct%dx_64, Atm%gridstruct%dx, &
+                              Atm%gridstruct%rdx, Atm%gridstruct%dy_64, &
+                              Atm%gridstruct%dy, Atm%gridstruct%rdy, &
+                              Atm%gridstruct%grid_64)
+
     call sorted_inta(isd, ied, jsd, jed, cubed_sphere, grid, iinta, jinta)
 
     agrid(:,:,:) = -1.e25
@@ -480,6 +485,62 @@ module fv_control_stub_mod
                          cubed_sphere, agrid, iintb, jintb)
     end subroutine init_grid
 
+ subroutine compute_grid_metrics(Atm, dx_64, dx, rdx, dy_64, dy, rdy, grid_64)
+    type(fv_atmos_type), intent(inout) :: Atm
+    real(kind=R_GRID), intent(inout) :: dx_64(:,:), dx(:,:), rdx(:,:)
+    real(kind=R_GRID), intent(inout) :: dy_64(:,:), dy(:,:), rdy(:,:)
+    real(kind=R_GRID), intent(in)    :: grid_64(:,:,:)
+
+    integer :: i, j, is, ie, js, je
+    real(kind=R_GRID) :: p1(2), p2(2)
+
+    ! Get compute domain bounds from Atm
+    is  = Atm%bd%is
+    ie  = Atm%bd%ie
+    js  = Atm%bd%js
+    je  = Atm%bd%je
+
+    ! Compute dx from grid corners: distance from (i,j) to (i+1,j)
+    do j = js, je+1
+       do i = is, ie
+          p1(1) = grid_64(i,j,1)
+          p1(2) = grid_64(i,j,2)
+          p2(1) = grid_64(i+1,j,1)
+          p2(2) = grid_64(i+1,j,2)
+          dx_64(i,j) = great_circle_dist(p1, p2)
+          dx(i,j) = real(dx_64(i,j))
+          if (dx(i,j) > 0.0) then
+             rdx(i,j) = 1.0_R_GRID / dx(i,j)
+          endif
+       enddo
+    enddo
+
+    ! Compute dy from grid corners: distance from (i,j) to (i,j+1)
+    do j = js, je
+       do i = is, ie+1
+          p1(1) = grid_64(i,j,1)
+          p1(2) = grid_64(i,j,2)
+          p2(1) = grid_64(i,j+1,1)
+          p2(2) = grid_64(i,j+1,2)
+          dy_64(i,j) = great_circle_dist(p1, p2)
+          dy(i,j) = real(dy_64(i,j))
+          if (dy(i,j) > 0.0) then
+             rdy(i,j) = 1.0_R_GRID / dy(i,j)
+          endif
+       enddo
+    enddo
+ end subroutine compute_grid_metrics
+
+ real(kind=R_GRID) function great_circle_dist(q1, q2)
+    real(kind=R_GRID), intent(in) :: q1(2), q2(2)
+    real(kind=R_GRID) :: cos_angle
+    real(kind=R_GRID) :: radius_earth = 6.371e6_R_GRID  ! Earth radius in meters
+
+    ! Great-circle distance using haversine-like formula
+    cos_angle = sin(q1(2))*sin(q2(2)) + cos(q1(2))*cos(q2(2))*cos(q1(1)-q2(1))
+    cos_angle = max(-1.0_R_GRID, min(1.0_R_GRID, cos_angle))
+    great_circle_dist = radius_earth * acos(cos_angle)
+ end function great_circle_dist
 
 !-------------------------------------------------------------------------------
  subroutine cell_center2(q1, q2, q3, q4, e2)
