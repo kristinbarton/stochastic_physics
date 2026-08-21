@@ -34,7 +34,7 @@ logical :: do_ca, ca_sgs, ca_global, ca_smooth
 integer*8 :: iseed_ca
 integer :: nspinup, nsmooth
 real :: ca_amplitude
-real(kind=kind_phys) :: l_min
+real(kind=kind_phys) :: l_grid
 logical :: ca_closure, ca_entr, ca_trigger, warm_start
 real(kind=kind_phys), allocatable :: ca1(:,:), ca2(:,:), ca3(:,:)
 
@@ -102,9 +102,9 @@ print *, 'after init', my_id, Atm(1)%tile_of_mosaic, isc, jec
 blksz=nx
 nblks=ny
 
-! set gaussian grid scale l_min based on fv3 grid size
-l_min = 0.5_kind_phys * (sum(grid_box%dx(isc:iec,jsc:jec)) + sum(grid_box%dy(isc:iec,jsc:jec))) / real(nx*ny, kind=kind_phys) * 5
-print *, 'average FV3 cell size (m) = ', l_min
+! set gaussian grid scale l_grid based on fv3 grid size
+l_grid = 0.5_kind_phys * (sum(grid_box%dx(isc:iec,jsc:jec)) + sum(grid_box%dy(isc:iec,jsc:jec))) / real(nx*ny, kind=kind_phys) * 5
+print *, 'average FV3 cell size (m) = ', l_grid
 
 if (ca_global) then
   allocate(ca1 (nblks,blksz))
@@ -180,7 +180,7 @@ do i = istart, 101
            warm_start,         &
            first_time_step,    &
            nca_g,              &
-           ncells_g,           &
+           ncells_g,           & ! Passes into l_scale
            nlives_g,           &
            nfracseed,          &
            nseed_g,            &
@@ -189,7 +189,7 @@ do i = istart, 101
            nspinup,            &
            nsmooth,            &
            ca_amplitude,       &
-           l_min,              &
+           l_grid,             &
            gaussian_ca,        &
            gaussian_grid       &
          )
