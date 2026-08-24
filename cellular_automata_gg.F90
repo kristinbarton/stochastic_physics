@@ -223,12 +223,14 @@ do it=1,spinup
 
   board_halo(2:nlon+1,2:nlat+1) = board_g(:,:,nf)
   ! North pole : crossing pole shifts 180 degrees
-  board_halo(2:nlon/2+1, 1) = board_halo(nlon/2+2:nlon+1, 2) 
+  board_halo(1:nlon/2+1, 1) = board_halo(nlon/2+1:nlon+1, 2) 
+  board_halo(nlon/2+2:nlon+2, 1) = board_halo(2:nlon/2+1, 2)
   ! South pole : crossing pole shifts 180 degrees
-  board_halo(nlon/2+2:nlon+1, 1) = board_halo(2:nlon/2+1, 1)
+  board_halo(1:nlon/2+1, nlat+2) = board_halo(nlon/2+1:nlon+1, nlat+1) 
+  board_halo(nlon/2+2:nlon+2, nlat+2) = board_halo(2:nlon/2+1, nlat+1)
   ! East-West periodicity
-  board_halo(:, 1) = board_halo(:, nlat+1)
-  board_halo(:, nlat+2) = board_halo(:, 2)
+  board_halo(1, :) = board_halo(nlon+1, :)
+  board_halo(nlon+2, :) = board_halo(2, :)
   ! Gaussian grid nlon will always be even
 
   ! Get neighbor count
