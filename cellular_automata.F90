@@ -6,7 +6,7 @@
 
 !This program evolves a cellular automaton uniform over the globe
 
-module cellular_automata_gg_mod
+module cellular_automata_mod
 
 use constants_mod, only : radius
 use kinddef
@@ -18,7 +18,7 @@ private
 public :: ggca_grid_t
 public :: ggca_init
 public :: ggca_write
-public :: cellular_automata_gg
+public :: cellular_automata
 
 ! Gaussian grid for cellular automata
 type :: ggca_grid_t
@@ -39,7 +39,7 @@ real(kind=kind_dbl_prec), allocatable, save :: ca_field(:,:,:) ! Normalized CA f
 
 contains
 
-subroutine cellular_automata_gg(     &
+subroutine cellular_automata(     &
         kstep,           & ! Current model time step 
         restart,         & ! Whether to initialize from restart (to do...)
         first_time_step, & ! Whether first time step  
@@ -138,21 +138,21 @@ csum = int(ggrid%nlon, 8) * int(ggrid%nlat, 8) ! total # gaussian grid cells
 do nf=1,nca ! Run update for each CA
   call update_cells(kstep, first_time_step, iseed_ca, nseed, nspinup, ggrid%nlon, ggrid%nlat, nca, nf, ilives_g)
 
-  ! Normalize output
-  psum    = SUM(ca_field(:,:,nf))
-  CAmean  = psum / real(csum, kind=kind_dbl_prec)
-  sq_diff = SUM((ca_field(:,:,nf) - CAmean)**2.0_kind_dbl_prec)
-  CAstdv  = sqrt(sq_diff / real(csum, kind=kind_dbl_prec))
-  ! Transform to mean of 1 and ca_amplitude standard deviation
-  ca_field(:,:,nf) = 1.0_kind_dbl_prec + (ca_field(:,:,nf) - CAmean) * (real(ca_amplitude, kind=kind_dbl_prec) / CAstdv)
-  ca_field(:,:,nf) = min(max(ca_field(:,:,nf), 0.0_kind_dbl_prec), 2.0_kind_dbl_prec)
+!  ! Normalize output
+!  psum    = SUM(ca_field(:,:,nf))
+!  CAmean  = psum / real(csum, kind=kind_dbl_prec)
+!  sq_diff = SUM((ca_field(:,:,nf) - CAmean)**2.0_kind_dbl_prec)
+!  CAstdv  = sqrt(sq_diff / real(csum, kind=kind_dbl_prec))
+!  ! Transform to mean of 1 and ca_amplitude standard deviation
+!  ca_field(:,:,nf) = 1.0_kind_dbl_prec + (ca_field(:,:,nf) - CAmean) * (real(ca_amplitude, kind=kind_dbl_prec) / CAstdv)
+!  ca_field(:,:,nf) = min(max(ca_field(:,:,nf), 0.0_kind_dbl_prec), 2.0_kind_dbl_prec)
 enddo
 
 ! Populate output field and grid
 ca_field_out = ca_field
 grid_out = ggrid
 
-end subroutine cellular_automata_gg
+end subroutine cellular_automata
 
 subroutine update_cells( &  
         kstep,           & ! Current model time step 
@@ -210,17 +210,7 @@ do it=1,spinup
   newcell=0
   board_halo=0
 
-
-  ! Setup periodicity like this:
-  ! | 2| | 3| 4| 1| 2| | 3|
-  !      -------------
-  ! | 4| | 1| 2| 3| 4| | 1|
-  ! | 8| | 5| 6| 7| 8| | 5|
-  ! |12| | 9|10|11|12| | 9|
-  ! |16| |13|14|15|16| |13|
-  !      -------------
-  ! |14| |15|16|13|14| |15|
-
+  ! Setup periodicity
   board_halo(2:nlon+1,2:nlat+1) = board_g(:,:,nf)
   ! North pole : crossing pole shifts 180 degrees
   board_halo(1:nlon/2+1, 1) = board_halo(nlon/2+1:nlon+1, 2) 
@@ -239,10 +229,6 @@ do it=1,spinup
       neighbors(i-1,j-1) = board_halo(i-1,j-1) + board_halo(i-1,j) + board_halo(i-1,j+1) + &
                            board_halo(i,  j-1)           +           board_halo(i,  j+1) + &
                            board_halo(i+1,j-1) + board_halo(i+1,j) + board_halo(i+1,j+1)
-
-!      neighbors(i-1,j-1) =                     board_halo(i-1,j)                   + &
-!                           board_halo(i,j-1)           +         board_halo(i,j+1) + &
-!                                               board_halo(i+1,j)                      
     enddo
   enddo
 
@@ -542,4 +528,4 @@ if (status /= nf90_noerr) then
 end if
 end subroutine check_nf90
 
-end module cellular_automata_gg_mod
+end module cellular_automata_mod

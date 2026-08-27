@@ -2,7 +2,7 @@ Run a test with (this will compile AND run):
 sbatch run_ggca.sh
 
 Manually compile code with:
-source env_ursa_intelllvm.sh
+source envs/env_ursa_intelllvm.sh
 make ca     # Original CA standalone
 make ggca   # Gaussian grid CA standalone
 

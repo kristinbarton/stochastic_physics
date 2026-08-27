@@ -2,7 +2,7 @@ program standalone_ggca
 
 use netcdf
 use mpi_f08
-use cellular_automata_gg_mod, only : cellular_automata_gg, ggca_grid_t, ggca_write
+use cellular_automata_mod, only : cellular_automata, ggca_grid_t, ggca_write
 use update_ca, only: read_ca_restart
 use atmosphere_stub_mod, only: Atm, atmosphere_init_stub
 use mpp_mod, only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe
@@ -175,7 +175,7 @@ ct = 1
 do i = istart, 101
   print *, "kstep = ", i
   if (ca_global) then
-    call cellular_automata_gg( &
+    call cellular_automata(    &
            i,                  &
            warm_start,         &
            first_time_step,    &
@@ -203,11 +203,6 @@ do i = istart, 101
     if (nca_g >= 2) ca2(:,:) = real(fv3_ca(:,:,2), kind=kind_phys)
     if (nca_g >= 3) ca3(:,:) = real(fv3_ca(:,:,3), kind=kind_phys)
 
-    do j=1,nca_g
-      write(output_file, '("ca",I1,"_gaussian.nc")') j
-      call ggca_write(trim(output_file), gaussian_grid, gaussian_ca(:,:,j), i, my_id, root_pe)
-    enddo
-
     if (ntasks > 1000) then
       write(strid,'(I4.4)') my_id+1
     else if (ntasks > 100) then
@@ -220,6 +215,10 @@ do i = istart, 101
     ts = i / 4.0
     if (mod(i-1,5) == 0) then
       call fv3ca_write('ca_out.tile'//trim(strid)//'.nc', ca1, ca2, ca3, ts, ct, ierr)
+      do j=1,nca_g
+        write(output_file, '("ca",I1,"_gaussian.nc")') j
+        call ggca_write(trim(output_file), gaussian_grid, gaussian_ca(:,:,j), i, my_id, root_pe)
+      enddo
     endif
 
   endif

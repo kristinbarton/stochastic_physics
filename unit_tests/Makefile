@@ -51,7 +51,7 @@ GGCA_SRCS = kinddef.F90 \
 		    random_numbers.F90 \
 		    plumes.F90 \
 		    update_ca.F90 \
-		    cellular_automata_gg.F90
+		    cellular_automata.F90
 
 GGCA_OBJS = $(addprefix $(BUILD_DIR)/, $(GGCA_SRCS:.F90=.o))
 
@@ -73,4 +73,4 @@ $(BUILD_DIR)/%.o: %.F90 | $(BUILD_DIR)
 	$(FC) $(FLAGS) $(MOD_FLAG) -I$(BUILD_DIR) $(INCS) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) err out

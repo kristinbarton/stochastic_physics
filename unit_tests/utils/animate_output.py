@@ -1,3 +1,4 @@
+# Create animation of CA on GG and FV3 grids
 import argparse
 import os
 import xarray as xr
@@ -42,7 +43,7 @@ def main(args):
 
         time_slice = ggds['field'].isel(time=t)
 
-        # This cyclic point prevents blank seam line in global plots
+        # This cyclic point prevents blank seam line in global plots (?)
         data_cyc, lons_cyc = add_cyclic_point(time_slice.values, coord=ggds.lon.values)
         lats = ggds.lat.values
 
@@ -57,7 +58,7 @@ def main(args):
                     ax.text(-0.15, 0.5, row_label, transform=ax.transAxes, rotation=90, va='center', ha='center', fontsize=14)
                 if (row==0): # Gaussian Grid
                     im = ax.pcolormesh(lons_cyc, lats, data_cyc, transform=ccrs.PlateCarree(), vmin=vmin, vmax=vmax, cmap='viridis', shading='auto')
-                else: # FV3 Grid
+                else: # FV3 Grid 
                     fv3_axs.append(ax)
 
         # Plot all FV3 tiles
@@ -97,7 +98,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate CA output animation")
     parser.add_argument("--dir", default="../run_ggca", help="Path to output files")
     parser.add_argument("--nca", default='ca1', help="Which CA number to plot")
-    parser.add_argument("--gridpre", default='../run_ggca/INPUT/C96.mx025_oro_data.tile', help="Dir/tile prefix of location containing grid lat/lon data")
+    parser.add_argument("--gridpre", default='../run_ggca/INPUT/C96.mx025_oro_data.tile', help="/path/tile prefix of location containing grid lat/lon data")
     parser.add_argument("-o", "--output", default="output.gif", help="Output GIF file location")
     args = parser.parse_args()
 

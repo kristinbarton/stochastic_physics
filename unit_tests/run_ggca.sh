@@ -15,7 +15,7 @@
 EXEC=standalone_ggca.x
 if [ ! -f "build/$EXEC" ]; then
     echo "Compiling $EXEC"
-    source ./env_ursa_intelllvm.sh
+    source ./envs/env_ursa_intelllvm.sh
     make ggca
     if [ ! -f "build/$EXEC" ]; then
         echo "ERROR COMPILING $EXEC"
@@ -47,7 +47,7 @@ if [ ! -L "INPUT/$GRIDSPEC" ]; then
 fi
 
 # Populate namelist template
-cp ../templates/input.nml.ca_template input.nml
+cp ../templates/input.nml.gg_template input.nml
 sed -i -e "s/LOX/1/g" input.nml
 sed -i -e "s/LOY/1/g" input.nml
 sed -i -e "s/NPX/$NPX/g" input.nml

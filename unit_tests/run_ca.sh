@@ -15,7 +15,7 @@
 EXEC=standalone_ca.x
 if [ ! -f "build/$EXEC" ]; then
     echo "Compiling $EXEC"
-    source ./env_ursa_intelllvm.sh
+    source ./envs/env_ursa_intelllvm.sh
     make ca
     if [ ! -f "build/$EXEC" ]; then
         echo "ERROR COMPILING $EXEC"
