@@ -47,15 +47,29 @@ if [ ! -L "INPUT/$GRIDSPEC" ]; then
 fi
 
 # Populate namelist template
-cp ../templates/input.nml.gg_template input.nml
+WARMSTART='.false.'
+cp ../templates/input.nml.ca_template input.nml
 sed -i -e "s/LOX/1/g" input.nml
 sed -i -e "s/LOY/1/g" input.nml
 sed -i -e "s/NPX/$NPX/g" input.nml
 sed -i -e "s/NPY/$NPY/g" input.nml
 sed -i -e "s/RES/$RES/g" input.nml
+sed -i -e "s/WARMSTART/$WARMSTART/g" input.nml
 
 # Run executable
 ln -s ../build/$EXEC .
 export OMP_NUM_THREADS=1
 echo "Running executable"
+time srun --label -n 6 $EXEC >& ggca.stdout
+
+WARMSTART='.true.'
+cp ../templates/input.nml.ca_template input.nml
+sed -i -e "s/LOX/1/g" input.nml
+sed -i -e "s/LOY/1/g" input.nml
+sed -i -e "s/NPX/$NPX/g" input.nml
+sed -i -e "s/NPY/$NPY/g" input.nml
+sed -i -e "s/RES/$RES/g" input.nml
+sed -i -e "s/WARMSTART/$WARMSTART/g" input.nml
+
+echo "Running restart"
 time srun --label -n 6 $EXEC >& ggca.stdout

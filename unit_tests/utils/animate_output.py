@@ -10,14 +10,15 @@ from PIL import Image
 
 def main(args):
     # Open gaussian grid dataset
-    ggfile = f"{args.dir}/{args.nca}_gaussian.nc"
+    ggfile = f"{args.dir}/ca_restart.nc"
 
     print(f"Gaussian grid: {ggfile}")    
     ggds = xr.open_dataset(ggfile)
+    ggfield = ggds['field'].isel(nca=args.nca)
 
     # Get min/max values for colorbar
-    vmin = ggds['field'].min().values
-    vmax = ggds['field'].max().values
+    vmin = ggfield.min().values
+    vmax = ggfield.max().values
 
     # Gather  FV3 tiles 
     print(f"FV3 grid: {args.dir}/ca_out.tile*.nc")
@@ -41,7 +42,7 @@ def main(args):
         print(f"Generating frame {t+1}/{ggds.sizes['time']}", end='\r')
         fig = plt.figure(figsize=(16,10))
 
-        time_slice = ggds['field'].isel(time=t)
+        time_slice = ggfield.isel(time=t)
 
         # This cyclic point prevents blank seam line in global plots (?)
         data_cyc, lons_cyc = add_cyclic_point(time_slice.values, coord=ggds.lon.values)
@@ -63,7 +64,7 @@ def main(args):
 
         # Plot all FV3 tiles
         for tile in range(6):
-            data_fv3 = fv3_dss[tile][args.nca].isel(time=t).values
+            data_fv3 = fv3_dss[tile][f"ca{args.nca}"].isel(time=t).values
             lons_fv3 = fv3_lls[tile].geolon.values
             lats_fv3 = fv3_lls[tile].geolat.values
 
@@ -91,13 +92,13 @@ def main(args):
     for filename in pngfiles:
         os.remove(filename)
 
-    print(f"Done! GIF saved to: {args.output}")
+    print(f"\nDone! GIF saved to: {args.output}")
 
 if __name__ == "__main__":
     # Command line arguments
     parser = argparse.ArgumentParser(description="Generate CA output animation")
-    parser.add_argument("--dir", default="../run_ggca", help="Path to output files")
-    parser.add_argument("--nca", default='ca1', help="Which CA number to plot")
+    parser.add_argument("--dir", default="../run_ggca/RESTART", help="Path to output files")
+    parser.add_argument("--nca", default=1,type=int, help="Which CA number to plot")
     parser.add_argument("--gridpre", default='../run_ggca/INPUT/C96.mx025_oro_data.tile', help="/path/tile prefix of location containing grid lat/lon data")
     parser.add_argument("-o", "--output", default="output.gif", help="Output GIF file location")
     args = parser.parse_args()

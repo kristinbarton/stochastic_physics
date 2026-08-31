@@ -47,7 +47,7 @@ if [ ! -L "INPUT/$GRIDSPEC" ]; then
 fi
 
 # Populate namelist template
-cp ../templates/input.nml.ca_template input.nml
+cp ../templates/input.nml.ca_legacy_template input.nml
 sed -i -e "s/LOX/1/g" input.nml
 sed -i -e "s/LOY/1/g" input.nml
 sed -i -e "s/NPX/$NPX/g" input.nml
