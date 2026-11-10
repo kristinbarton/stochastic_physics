@@ -19,7 +19,7 @@ public :: ca_grid_t                    ! Cellular Automata Object Type
 public :: initialize_cellular_automata ! Initialize brand new CA
 public :: restart_cellular_automata    ! Initialize CA from restart files 
 public :: update_cellular_automata     ! Run CA update logic
-public :: output_cellular_automata     ! Output CA data to netcdf
+public :: write_cellular_automata     ! Output CA data to netcdf
 
 ! Cellular Automata object
 type :: ca_grid_t 
@@ -225,6 +225,7 @@ subroutine update_cellular_automata( &
         nseed,           & ! Frequency (in timesteps) for new seeding
         nspinup,         & ! Number of spinup iterations on first step
         nlives,          &
+        ca_amplitude,    &
         ca_grid)
 
 use random_numbers,  only: random_01_CB
@@ -235,9 +236,12 @@ integer, intent(in)             :: kstep, nseed, nspinup, nlives
 integer(8), intent(in)          :: iseed_ca
 real(kind=kind_phys), intent(in):: nfracseed
 type(ca_grid_t), intent(inout)  :: ca_grid
+real(kind=kind_phys), intent(in) :: ca_amplitude
 
 ! Private variables
 real(kind=kind_dbl_prec), allocatable :: noise(:,:,:), noise_b(:,:)
+real(kind=kind_dbl_prec) :: psum, CAmean, sq_diff, CAstdv
+integer(8) :: csum
 integer, allocatable          :: board_halo(:,:), newseed(:,:), neighbors(:,:), birth(:,:), newcell(:,:)
 integer, allocatable          :: ilives(:,:,:), iini(:,:,:)
 integer                       :: i,j,k,it,spinup,count4,nf
@@ -372,17 +376,17 @@ enddo! spinup
 
 ca_grid%field(:,:,:) = real(ca_grid%lives(:,:,:), kind=kind_dbl_prec)
 
-!! Normalize output
-!csum = int(ca_grid%nlon, 8) * int(ca_grid%nlat, 8) ! total # gaussian grid cells
-!do nf=1,ca_grid%nca
-!  psum    = SUM(ca_grid%field(:,:,nf))
-!  CAmean  = psum / real(csum, kind=kind_dbl_prec)
-!  sq_diff = SUM((ca_grid%field(:,:,nf) - CAmean)**2.0_kind_dbl_prec)
-!  CAstdv  = sqrt(sq_diff / real(csum, kind=kind_dbl_prec))
-!  ! Transform to mean of 1 and ca_amplitude standard deviation
-!  field(:,:,nf) = 1.0_kind_dbl_prec + (ca_grid%field(:,:,nf) - CAmean) * (real(ca_amplitude, kind=kind_dbl_prec) / CAstdv)
-!  field(:,:,nf) = min(max(ca_grid%field(:,:,nf), 0.0_kind_dbl_prec), 2.0_kind_dbl_prec)
-!enddo
+! Normalize output
+csum = int(ca_grid%nlon, 8) * int(ca_grid%nlat, 8) ! total # gaussian grid cells
+do nf=1,ca_grid%nca
+  psum    = SUM(ca_grid%field(:,:,nf))
+  CAmean  = psum / real(csum, kind=kind_dbl_prec)
+  sq_diff = SUM((ca_grid%field(:,:,nf) - CAmean)**2.0_kind_dbl_prec)
+  CAstdv  = sqrt(sq_diff / real(csum, kind=kind_dbl_prec))
+  ! Transform to mean of 1 and ca_amplitude standard deviation
+  ca_grid%field(:,:,nf) = 1.0_kind_dbl_prec + (ca_grid%field(:,:,nf) - CAmean) * (real(ca_amplitude, kind=kind_dbl_prec) / CAstdv)
+  ca_grid%field(:,:,nf) = min(max(ca_grid%field(:,:,nf), 0.0_kind_dbl_prec), 2.0_kind_dbl_prec)
+enddo
 
 deallocate(iini)
 deallocate(ilives)
@@ -539,7 +543,7 @@ end subroutine count_generator
 ! ----------------------------------- !
 ! Output cellular automata to netcdf  !
 ! ----------------------------------- !
-subroutine output_cellular_automata(outfile, grid, time)
+subroutine write_cellular_automata(outfile, grid, time)
 ! In/Out
 character(len=*), intent(in) :: outfile
 type(ca_grid_t), intent(in) :: grid
@@ -565,11 +569,11 @@ logical :: file_exists
   logical :: first_time_step = .True.
 
 if (.not. allocated(grid%lats)) then
-  write(0,*) 'output_cellular_automata: grid%lats not allocated'
+  write(0,*) 'write_cellular_automata: grid%lats not allocated'
   stop 1
 end if
 if (.not. allocated(grid%lons)) then
-  write(0,*) 'output_cellular_automata: grid%lons not allocated'
+  write(0,*) 'write_cellular_automata: grid%lons not allocated'
   stop 1
 end if
 
@@ -661,7 +665,7 @@ call check_nf90(ierr, 'nf90_put_var(lives)')
 
 ierr = nf90_close(ncid)
 call check_nf90(ierr, 'nf90_close')
-end subroutine output_cellular_automata
+end subroutine write_cellular_automata
 
 ! NetCDF output helper function
 subroutine check_nf90(status, where)

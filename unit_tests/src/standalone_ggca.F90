@@ -33,8 +33,7 @@ integer :: nseed, nseed_g
 logical :: do_ca, ca_sgs, ca_global, ca_smooth
 integer*8 :: iseed_ca
 integer :: nspinup, nsmooth
-real :: ca_amplitude
-real(kind=kind_phys) :: l_grid
+real(kind=kind_phys) :: l_grid, ca_amplitude
 logical :: ca_closure, ca_entr, ca_trigger, warm_start, write_restart
 integer :: time_idx
 
@@ -125,7 +124,7 @@ if (do_ca) then
   do i = istart, iend 
     print *, "kstep = ", i
   
-    call update_cellular_automata(i, iseed_ca, nfracseed, nseed, nspinup, nlives, ca_object)
+    call update_cellular_automata(i, iseed_ca, nfracseed, nseed, nspinup, nlives, ca_amplitude, ca_object)
     call remap_ca_to_fv3(ca_object, fv3_lons, fv3_lats, fv3_ca)
   
     if (mod(i,5) == 0) then
@@ -134,7 +133,7 @@ if (do_ca) then
       if (write_restart .and. my_id == 0) then
         print *, "writing restart: my_id",my_id,"time",i
         write(filename, '("RESTART/ca_restart.nc")')
-        call output_cellular_automata(trim(filename), ca_object, i)
+        call write_cellular_automata(trim(filename), ca_object, i)
       endif
     endif
   enddo
