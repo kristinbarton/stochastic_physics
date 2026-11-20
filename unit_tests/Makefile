@@ -51,7 +51,8 @@ GGCA_SRCS = kinddef.F90 \
 		    random_numbers.F90 \
 		    plumes.F90 \
 		    update_ca.F90 \
-		    cellular_automata.F90
+		    cellular_automata.F90 \
+				fv3_to_gaussian_remap.F90
 
 GGCA_OBJS = $(addprefix $(BUILD_DIR)/, $(GGCA_SRCS:.F90=.o))
 
@@ -60,6 +61,9 @@ $(BUILD_DIR)/libggca.a: $(GGCA_OBJS)
 
 ggca: $(BUILD_DIR)/libggca.a $(BUILD_DIR)/standalone_ggca.o
 	$(FC) $(FLAGS) -o $(BUILD_DIR)/standalone_ggca.x $(BUILD_DIR)/standalone_ggca.o -L$(BUILD_DIR) -lggca $(INCS) $(LIBS)
+
+$(BUILD_DIR)/fv3_to_gaussian_remap.o: $(BUILD_DIR)/cellular_automata.o
+$(BUILD_DIR)/standalone_ggca.o: $(BUILD_DIR)/fv3_to_gaussian_remap.o
 
 # ---------------------------------------------------
 # General rules
